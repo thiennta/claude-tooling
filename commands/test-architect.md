@@ -198,7 +198,9 @@ test.describe('<feature>', () => {
 
 ## STEP 4 — Report
 
-Sau khi tạo xong file, hiển thị:
+Sau khi tạo xong file, gọi tool `generate_report` với `projectPath` và toàn bộ dữ liệu tổng hợp từ các bước trên (requirements, selectors, gaps, generatedFile). Nếu có flag `--run` và đã chạy test, truyền thêm `testResults`.
+
+Sau khi `generate_report` trả về `filePath`, hiển thị:
 
 ```
 ════════════════════════════════════════════
@@ -224,6 +226,9 @@ Nên thêm data-testid vào:
 
 ── Generated file ─────────────────────────
   tests/feature/<module>.spec.ts
+
+── HTML Report ────────────────────────────
+  <filePath từ generate_report>
 
 Run: npx playwright test --grep "<module>"
 ════════════════════════════════════════════

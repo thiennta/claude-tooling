@@ -10,6 +10,7 @@ import { gapAnalysis } from './tools/gap-analysis.js';
 import { runTests } from './tools/run-tests.js';
 import { classifyResults } from './tools/classify-results.js';
 import { setupPlaywright } from './tools/setup-playwright.js';
+import { generateReport } from './tools/generate-report.js';
 
 const server = new McpServer({
   name: 'test-architect',
@@ -142,6 +143,53 @@ server.tool(
   },
   async ({ projectPath, baseURL }) => {
     const result = await setupPlaywright(projectPath, baseURL);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'generate_report',
+  'Generate a clean HTML report for a test-architect run and save it to test-architect-reports/<module>_<timestamp>.html',
+  {
+    projectPath: z.string().describe('Absolute path to the project root'),
+    reportInput: z.object({
+      module: z.string(),
+      specFile: z.string(),
+      generatedAt: z.string(),
+      requirements: z.number(),
+      testsGenerated: z.number(),
+      expectedPass: z.number(),
+      expectedFail: z.number(),
+      selectors: z.object({
+        stable: z.number(),
+        medium: z.number(),
+        fragile: z.number(),
+        skipped: z.number(),
+        total: z.number(),
+        missingIn: z.array(z.string()),
+      }),
+      gaps: z.object({
+        matched: z.array(z.object({ description: z.string(), hasSelector: z.boolean() })),
+        missing: z.array(z.object({ description: z.string(), reason: z.string() })),
+        undocumented: z.array(z.object({ route: z.string(), entry: z.string() })),
+      }),
+      testResults: z.object({
+        passed: z.number(),
+        failed: z.number(),
+        skipped: z.number(),
+        duration: z.number(),
+        failures: z.array(z.object({
+          test: z.string(),
+          error: z.string(),
+          category: z.string(),
+          suggestion: z.string(),
+        })),
+      }).optional(),
+      generatedFile: z.string().optional(),
+    }).describe('Report data'),
+  },
+  async ({ projectPath, reportInput }) => {
+    const result = await generateReport(projectPath, reportInput as any);
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   }
 );
