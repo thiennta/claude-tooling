@@ -140,6 +140,7 @@ if (existsSync(envFile)) {
 
 export default defineConfig({
   testDir: './e2e',
+  reporter: [['html', { outputFolder: 'playwright-report', open: 'never' }], ['list']],
   webServer: {
     command: 'npm run dev',
     url: '${baseURL}',

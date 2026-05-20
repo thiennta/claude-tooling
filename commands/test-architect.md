@@ -6,9 +6,12 @@ Bạn là AI Test Architect. Nhiệm vụ: đọc spec file (.md) và source cod
 
 Parse các flag sau:
 - `--module <name>` — chỉ xử lý module/feature cụ thể
+- `--project <path>` — đường dẫn tuyệt đối đến project cần test (mặc định: cwd)
 - `--spec <path>` — đường dẫn tới spec file hoặc thư mục
 - `--run` — sau khi sinh test, chạy luôn và báo kết quả
 - `--coverage` — chỉ hiện gap analysis, không sinh test file
+
+Nếu có `--project <path>`, dùng path đó làm `projectPath`. Nếu không, dùng `cwd`.
 
 Nếu không có argument, xử lý toàn bộ project.
 
@@ -16,14 +19,17 @@ Nếu không có argument, xử lý toàn bộ project.
 
 ## STEP 1 — Scan
 
-Dùng `pwd` hoặc đọc context để xác định `projectPath` (thư mục hiện tại của user).
+Xác định `projectPath`: dùng `--project <path>` nếu có, nếu không dùng `pwd`.
 
-**Chạy song song:**
+**Wave 1 — chạy song song (không có dependency):**
 
 1. Gọi tool `detect_framework` với `projectPath`
 2. Gọi tool `scan_specs` với `projectPath` + `specPath` (nếu có `--spec`) + `moduleFilter` (nếu có `--module`)
-3. Gọi tool `scan_code_flows` với `projectPath` + framework từ bước 1 + `moduleFilter`
-4. Gọi tool `scan_validation_rules` với `projectPath` + framework + `moduleFilter`
+
+**Wave 2 — chờ Wave 1 xong, sau đó chạy song song (cần `framework` từ `detect_framework`):**
+
+3. Gọi tool `scan_code_flows` với `projectPath` + `framework` + `moduleFilter`
+4. Gọi tool `scan_validation_rules` với `projectPath` + `framework` + `moduleFilter`
 
 **Sau khi có kết quả `detect_framework`:**
 
@@ -262,9 +268,11 @@ Nếu auth thất bại → hỏi lại, tối đa 3 lần. Nếu vẫn lỗi sa
 
 Gọi tool `run_tests` với `projectPath` và `filter` = tên module.
 
-**5c. Classify và báo kết quả:**
+**5c. Classify, sinh report, và báo kết quả:**
 
 Gọi tool `classify_results` với danh sách failures.
+
+Gọi tool `generate_report` với `projectPath`, toàn bộ dữ liệu từ các bước trước, và `testResults` (passed, failed, skipped, duration, failures đã classify). HTML report lần này sẽ có đầy đủ kết quả test.
 
 Hiển thị:
 
@@ -287,6 +295,9 @@ Hiển thị:
   [needs_mock] "<test name>"
     Error: <error>
     Fix: Thêm page.route() để mock API
+
+── HTML Report ────────────────────────────
+  <filePath từ generate_report>
 ════════════════════════════════════════════
 ```
 

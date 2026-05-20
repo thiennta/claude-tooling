@@ -24,12 +24,13 @@ export async function scanCodeFlows(
     candidates = await directoryFallback(projectPath, baseFramework);
   }
 
-  // Apply module filter against name OR route
+  // Apply module filter against name, route, or component path
   if (moduleFilter) {
     const f = moduleFilter.toLowerCase();
     candidates = candidates.filter(r =>
       r.componentName.toLowerCase().includes(f) ||
-      r.route.toLowerCase().includes(f)
+      r.route.toLowerCase().includes(f) ||
+      r.componentPath.toLowerCase().includes(f)
     );
   }
 
