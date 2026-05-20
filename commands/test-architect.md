@@ -26,10 +26,18 @@ Dùng `pwd` hoặc đọc context để xác định `projectPath` (thư mục h
 4. Gọi tool `scan_validation_rules` với `projectPath` + framework + `moduleFilter`
 
 **Sau khi có kết quả `detect_framework`:**
-Nếu `hasPlaywright = false` → gọi tool `setup_playwright` với `projectPath` và `baseURL` từ detect_framework trước khi tiếp tục.
+
+Kiểm tra điều kiện Playwright bằng cách xét **đồng thời** 2 điểm:
+1. `hasPlaywright = false` — tức là `@playwright/test` hoặc `playwright` **chưa có trong `package.json`** (dependencies hoặc devDependencies)
+2. Hoặc `playwright.config.ts` / `playwright.config.js` **chưa tồn tại** ở thư mục gốc project
+
+Nếu **bất kỳ điều kiện nào** ở trên đúng → gọi tool `setup_playwright` với `projectPath` và `baseURL` từ `detect_framework` trước khi tiếp tục.
+
+> Lưu ý: `setup_playwright` tự xử lý từng bước: cài package nếu thiếu → tạo config nếu thiếu → cài Chromium browser. Gọi tool này luôn an toàn dù project đã cài một phần.
+
 Hiển thị thông báo:
 ```
-⚙ Playwright chưa được cài — đang tự động setup...
+⚙ Playwright chưa được cài đầy đủ — đang tự động setup...
   ✓ Installed @playwright/test      (nếu installedPackage = true)
   ✓ Created playwright.config.js    (nếu createdConfig = true)
   ✓ Installed Chromium browser      (nếu installedBrowsers = true)
