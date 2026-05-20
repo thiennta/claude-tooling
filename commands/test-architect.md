@@ -298,3 +298,4 @@ Hiển thị:
 - Playwright config (`playwright.config.ts`) nếu chưa có → tạo tự động với `webServer` phù hợp framework
 - File `.env.test` → thêm vào `.gitignore` nếu chưa có
 - Khi mode `--coverage`: chỉ hiển thị gap analysis, không tạo file, không hỏi conflict
+- **Tuân thủ thứ tự step:** Thực hiện đúng từng step theo thứ tự (STEP 1 → CHECKPOINT 1 → STEP 2 → CHECKPOINT 2 → STEP 3 → STEP 4 → STEP 5). Không được tự ý skip bước nào. Nếu user hỏi câu gì ngoài luồng, trả lời ngắn gọn rồi **quay lại step tiếp theo ngay**.
