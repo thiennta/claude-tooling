@@ -34,10 +34,24 @@ export async function setupPlaywright(
     }
   }
 
-  // Install @playwright/test if missing
+  // Check if node_modules actually exists on disk (package.json alone is not enough)
+  const nodeModulesPlaywright = path.join(projectPath, 'node_modules', '@playwright', 'test');
+
+  // Install @playwright/test if missing from package.json
   if (!result.alreadyInstalled) {
     try {
       execSync('npm install --save-dev @playwright/test', {
+        cwd: projectPath, stdio: 'pipe', timeout: 120000,
+      });
+      result.installedPackage = true;
+    } catch (e: any) {
+      result.errors.push(`npm install failed: ${e.message}`);
+      return result;
+    }
+  } else if (!fs.existsSync(nodeModulesPlaywright)) {
+    // In package.json but not on disk — node_modules out of sync, run npm install
+    try {
+      execSync('npm install', {
         cwd: projectPath, stdio: 'pipe', timeout: 120000,
       });
       result.installedPackage = true;
