@@ -47,7 +47,13 @@ cpSync(resolve(__dirname, 'mcp-servers', 'test-architect'), mcpDest, {
 
 // 5. Build MCP server
 console.log('[3/4] Installing & building MCP server...')
-execSync('npm install && npm run build', { cwd: mcpDest, stdio: 'inherit', shell: true })
+try {
+  execSync('npm install && npm run build', { cwd: mcpDest, stdio: 'inherit', shell: true })
+} catch {
+  console.error('\nERROR: MCP server build failed. settings.json was NOT modified.')
+  console.error(`  Fix the error above, then re-run: node setup.js`)
+  process.exit(1)
+}
 
 // 6. Register MCP in ~/.claude/settings.json
 console.log('[4/4] Registering MCP server in settings.json...')

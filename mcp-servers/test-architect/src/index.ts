@@ -79,6 +79,20 @@ server.tool(
   }
 );
 
+const selectorInfoSchema = z.object({
+  type: z.enum(['data-testid', 'aria-label', 'role', 'placeholder', 'text', 'missing']),
+  value: z.string(),
+  stability: z.enum(['stable', 'medium', 'fragile', 'missing']),
+  playwrightCode: z.string(),
+});
+
+const uiElementSchema = z.object({
+  name: z.string(),
+  selector: selectorInfoSchema,
+  component: z.string(),
+  elementType: z.string(),
+});
+
 server.tool(
   'gap_analysis',
   'Compare spec requirements against code flows to find matched, missing, and undocumented behaviors',
@@ -95,7 +109,7 @@ server.tool(
       name: z.string(),
       entry: z.string(),
       route: z.string(),
-      elements: z.array(z.any()),
+      elements: z.array(uiElementSchema),
       apis: z.array(z.string()),
     })).describe('Scanned code flows'),
   },

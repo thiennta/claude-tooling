@@ -45,6 +45,17 @@ export async function generateReport(
   const outDir = path.join(projectPath, 'test-architect-reports');
   fs.mkdirSync(outDir, { recursive: true });
 
+  const gitignorePath = path.join(projectPath, '.gitignore');
+  const entry = 'test-architect-reports/';
+  if (fs.existsSync(gitignorePath)) {
+    const content = fs.readFileSync(gitignorePath, 'utf-8');
+    if (!content.includes(entry)) {
+      fs.appendFileSync(gitignorePath, `\n${entry}\n`, 'utf-8');
+    }
+  } else {
+    fs.writeFileSync(gitignorePath, `${entry}\n`, 'utf-8');
+  }
+
   const slug = input.module.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const timestamp = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
   const fileName = `${slug}_${timestamp}.html`;
