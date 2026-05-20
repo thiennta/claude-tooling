@@ -25,6 +25,17 @@ Dùng `pwd` hoặc đọc context để xác định `projectPath` (thư mục h
 3. Gọi tool `scan_code_flows` với `projectPath` + framework từ bước 1 + `moduleFilter`
 4. Gọi tool `scan_validation_rules` với `projectPath` + framework + `moduleFilter`
 
+**Sau khi có kết quả `detect_framework`:**
+Nếu `hasPlaywright = false` → gọi tool `setup_playwright` với `projectPath` và `baseURL` từ detect_framework trước khi tiếp tục.
+Hiển thị thông báo:
+```
+⚙ Playwright chưa được cài — đang tự động setup...
+  ✓ Installed @playwright/test      (nếu installedPackage = true)
+  ✓ Created playwright.config.js    (nếu createdConfig = true)
+  ✓ Installed Chromium browser      (nếu installedBrowsers = true)
+  ⚠ <error message>                 (nếu có errors)
+```
+
 Nếu `scan_specs` trả về danh sách rỗng → **không có spec**, tiếp tục nhưng ghi chú rõ: *"Không tìm thấy spec file — sẽ sinh test dựa trên code hiện tại (mode: confirm-behavior)"*.
 
 Với mỗi spec file tìm được, gọi `parse_markdown_spec` để extract requirements.

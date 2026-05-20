@@ -9,6 +9,7 @@ import { scanValidationRules } from './tools/scan-validation-rules.js';
 import { gapAnalysis } from './tools/gap-analysis.js';
 import { runTests } from './tools/run-tests.js';
 import { classifyResults } from './tools/classify-results.js';
+import { setupPlaywright } from './tools/setup-playwright.js';
 
 const server = new McpServer({
   name: 'test-architect',
@@ -128,6 +129,19 @@ server.tool(
   },
   async ({ failures }) => {
     const result = await classifyResults(failures);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'setup_playwright',
+  'Install @playwright/test, create playwright.config.js, and install Chromium browser if not already present in the project',
+  {
+    projectPath: z.string().describe('Absolute path to the project root'),
+    baseURL: z.string().describe('Base URL of the dev server (e.g. http://localhost:5173)'),
+  },
+  async ({ projectPath, baseURL }) => {
+    const result = await setupPlaywright(projectPath, baseURL);
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   }
 );
