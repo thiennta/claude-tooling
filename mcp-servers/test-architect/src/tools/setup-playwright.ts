@@ -71,24 +71,37 @@ export async function setupPlaywright(
   }
 
   // Install Playwright browsers (chromium only for speed)
-  try {
-    execSync('npx playwright install chromium --with-deps', {
-      cwd: projectPath, stdio: 'pipe', timeout: 300000,
-    });
-    result.installedBrowsers = true;
-  } catch {
-    // Try without --with-deps (no sudo on some systems)
+  if (!isChromiumInstalled()) {
     try {
-      execSync('npx playwright install chromium', {
+      execSync('npx playwright install chromium --with-deps', {
         cwd: projectPath, stdio: 'pipe', timeout: 300000,
       });
       result.installedBrowsers = true;
-    } catch (e: any) {
-      result.errors.push(`Browser install failed: ${e.message}`);
+    } catch {
+      try {
+        execSync('npx playwright install chromium', {
+          cwd: projectPath, stdio: 'pipe', timeout: 300000,
+        });
+        result.installedBrowsers = true;
+      } catch (e: any) {
+        result.errors.push(`Browser install failed: ${e.message}`);
+      }
     }
   }
 
   return result;
+}
+
+function isChromiumInstalled(): boolean {
+  const cacheDir = process.platform === 'win32'
+    ? path.join(process.env.LOCALAPPDATA || '', 'ms-playwright')
+    : path.join(process.env.HOME || '', '.cache', 'ms-playwright');
+  try {
+    return fs.existsSync(cacheDir) &&
+      fs.readdirSync(cacheDir).some(d => d.startsWith('chromium'));
+  } catch {
+    return false;
+  }
 }
 
 function generatePlaywrightConfig(baseURL: string): string {
