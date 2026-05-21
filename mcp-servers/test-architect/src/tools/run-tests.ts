@@ -8,7 +8,7 @@ export async function runTests(projectPath: string, filter?: string): Promise<Te
 
   try {
     const filterFlag = filter ? `--grep "${filter}"` : '';
-    execSync(`npx playwright test ${filterFlag} --reporter=json,html`.trim(), {
+    execSync(`npx playwright test ${filterFlag} --reporter=json`.trim(), {
       cwd: projectPath,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: outputFile },
@@ -28,7 +28,7 @@ export async function runTests(projectPath: string, filter?: string): Promise<Te
 
   try {
     const stdout = execSync(
-      `npx playwright test ${filter ? `--grep "${filter}"` : ''} --reporter=json,html`,
+      `npx playwright test ${filter ? `--grep "${filter}"` : ''} --reporter=json`,
       { cwd: projectPath, timeout: 300000 }
     ).toString();
     return parsePlaywrightJson(JSON.parse(stdout));

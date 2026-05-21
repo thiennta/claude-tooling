@@ -276,6 +276,8 @@ Gọi tool `classify_results` với danh sách failures.
 
 Gọi tool `generate_report` với `projectPath`, toàn bộ dữ liệu từ các bước trước, và `testResults` (passed, failed, skipped, duration, failures đã classify). HTML report lần này sẽ có đầy đủ kết quả test.
 
+**`generate_report` phải luôn được gọi và phải luôn trả về `filePath` HTML — bắt buộc, dù test pass hay fail.**
+
 Hiển thị:
 
 ```
@@ -299,9 +301,17 @@ Hiển thị:
     Fix: Thêm page.route() để mock API
 
 ── HTML Report ────────────────────────────
-  <filePath từ generate_report>
+  <filePath từ generate_report>   ← LUÔN HIỂN THỊ, không được bỏ qua
 ════════════════════════════════════════════
 ```
+
+**Sau khi hiển thị xong block trên → DỪNG HOÀN TOÀN:**
+- Không tự ý sửa test file
+- Không chạy lại test
+- Không hỏi user có muốn fix không
+- Không đề xuất thêm bất kỳ bước nào
+
+Nếu user muốn sửa hoặc chạy lại, họ sẽ chủ động yêu cầu.
 
 ---
 
