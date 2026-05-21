@@ -211,6 +211,8 @@ test.describe('<feature>', () => {
 
 Sau khi tạo xong file, gọi tool `generate_report` với `projectPath` và toàn bộ dữ liệu tổng hợp từ các bước trên (requirements, selectors, gaps, generatedFile). Nếu có flag `--run` và đã chạy test, truyền thêm `testResults`.
 
+**Ngôn ngữ trong report:** Tất cả các field text do Claude sinh ra khi gọi `generate_report` phải là **tiếng Anh**, bao gồm: `reason` (trong `gaps.missing`), `suggestion` và `category` (trong `testResults.failures`). Duy nhất `description` (tên item từ spec) giữ nguyên ngôn ngữ gốc từ spec file.
+
 Sau khi `generate_report` trả về `filePath`, hiển thị:
 
 ```
