@@ -5,15 +5,20 @@ import type { TestRunResult } from '../types.js';
 
 export async function runTests(projectPath: string, filter?: string): Promise<TestRunResult> {
   const outputFile = path.join(projectPath, '.test-architect-results.json');
+  const filterFlag = filter ? `--grep "${filter}"` : '';
 
+  // Run once with both reporters: json (for parsing) + html (for Playwright report)
+  // json reporter writes to file via env var; html reporter writes to playwright-report/
   try {
-    const filterFlag = filter ? `--grep "${filter}"` : '';
-    execSync(`npx playwright test ${filterFlag} --reporter=json`.trim(), {
-      cwd: projectPath,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: outputFile },
-      timeout: 300000,
-    });
+    execSync(
+      `npx playwright test ${filterFlag} --reporter=json --reporter=html`.trim(),
+      {
+        cwd: projectPath,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, PLAYWRIGHT_JSON_OUTPUT_NAME: outputFile },
+        timeout: 300000,
+      }
+    );
   } catch {
     // Playwright exits non-zero when tests fail — expected
   }
@@ -26,9 +31,10 @@ export async function runTests(projectPath: string, filter?: string): Promise<Te
     } catch { /* fall through */ }
   }
 
+  // Fallback: run again with only json if above failed
   try {
     const stdout = execSync(
-      `npx playwright test ${filter ? `--grep "${filter}"` : ''} --reporter=json`,
+      `npx playwright test ${filterFlag} --reporter=json`.trim(),
       { cwd: projectPath, timeout: 300000 }
     ).toString();
     return parsePlaywrightJson(JSON.parse(stdout));
