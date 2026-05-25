@@ -41,21 +41,21 @@ function extractRules(content: string, filePath: string): ValidationRule[] {
   const rules: ValidationRule[] = [];
 
   for (const m of content.matchAll(/(\w+):\s*yup\.\w+\(\)([^,;}]+)/g)) {
-    const fieldRules = parseYupChain(m[2]);
+    const { rules: fieldRules, errorMessages } = parseYupChain(m[2]);
     if (fieldRules.length > 0) {
-      rules.push({ field: m[1], rules: fieldRules, selector: findSelectorForField(content, m[1], filePath), component: filePath, canTest: true });
+      rules.push({ field: m[1], rules: fieldRules, errorMessages, selector: findSelectorForField(content, m[1], filePath), component: filePath, canTest: true });
     }
   }
 
   for (const m of content.matchAll(/(\w+):\s*z\.\w+\(\)([^,;}]+)/g)) {
-    const fieldRules = parseZodChain(m[2]);
+    const { rules: fieldRules, errorMessages } = parseZodChain(m[2]);
     if (fieldRules.length > 0) {
-      rules.push({ field: m[1], rules: fieldRules, selector: findSelectorForField(content, m[1], filePath), component: filePath, canTest: true });
+      rules.push({ field: m[1], rules: fieldRules, errorMessages, selector: findSelectorForField(content, m[1], filePath), component: filePath, canTest: true });
     }
   }
 
   for (const m of content.matchAll(/name=["'](\w+)["'][^>]*rules=["']([^"']+)["']/g)) {
-    rules.push({ field: m[1], rules: m[2].split('|'), selector: findSelectorForField(content, m[1], filePath), component: filePath, canTest: true });
+    rules.push({ field: m[1], rules: m[2].split('|'), errorMessages: {}, selector: findSelectorForField(content, m[1], filePath), component: filePath, canTest: true });
   }
 
   for (const m of content.matchAll(/<input[^>]+name=["'](\w+)["'][^>]*>/g)) {
@@ -70,27 +70,40 @@ function extractRules(content: string, filePath: string): ValidationRule[] {
     const maxMatch = tag.match(/maxlength=["'](\d+)["']/);
     if (maxMatch) htmlRules.push(`max:${maxMatch[1]}`);
     if (htmlRules.length > 0) {
-      rules.push({ field, rules: htmlRules, selector: findSelectorForField(content, field, filePath), component: filePath, canTest: true });
+      rules.push({ field, rules: htmlRules, errorMessages: {}, selector: findSelectorForField(content, field, filePath), component: filePath, canTest: true });
     }
   }
 
   return rules;
 }
 
-function parseYupChain(chain: string): string[] {
-  const rules: string[] = [];
-  if (chain.includes('.required('))  rules.push('required');
-  if (chain.includes('.email('))     rules.push('format:email');
-  if (chain.includes('.url('))       rules.push('format:url');
-  if (chain.includes('.uuid('))      rules.push('format:uuid');
-  const min = chain.match(/\.min\((\d+)/);
-  if (min) rules.push(`min:${min[1]}`);
-  const max = chain.match(/\.max\((\d+)/);
-  if (max) rules.push(`max:${max[1]}`);
-  return rules;
+function extractMessage(chain: string, methodName: string): string | undefined {
+  const re = new RegExp(`\\.${methodName}\\([^)]*['"\`]([^'"\`]+)['"\`]`);
+  return chain.match(re)?.[1];
 }
 
-function parseZodChain(chain: string): string[] {
+function parseYupChain(chain: string): { rules: string[]; errorMessages: Record<string, string> } {
+  const rules: string[] = [];
+  const errorMessages: Record<string, string> = {};
+
+  const addRule = (rule: string, msg?: string) => {
+    rules.push(rule);
+    if (msg) errorMessages[rule] = msg;
+  };
+
+  if (chain.includes('.required('))  addRule('required',     extractMessage(chain, 'required'));
+  if (chain.includes('.email('))     addRule('format:email',  extractMessage(chain, 'email'));
+  if (chain.includes('.url('))       addRule('format:url',    extractMessage(chain, 'url'));
+  if (chain.includes('.uuid('))      addRule('format:uuid',   extractMessage(chain, 'uuid'));
+  const min = chain.match(/\.min\((\d+)/);
+  if (min) addRule(`min:${min[1]}`, extractMessage(chain, 'min'));
+  const max = chain.match(/\.max\((\d+)/);
+  if (max) addRule(`max:${max[1]}`, extractMessage(chain, 'max'));
+
+  return { rules, errorMessages };
+}
+
+function parseZodChain(chain: string): { rules: string[]; errorMessages: Record<string, string> } {
   return parseYupChain(chain);
 }
 

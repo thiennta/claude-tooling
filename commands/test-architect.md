@@ -139,6 +139,13 @@ Dựa trên gap analysis và lựa chọn của user, sinh Playwright test files
 2. **Mỗi validation rule có selector** → 1 `test()` block negative case
 3. **Requirement type = "missing"** → sinh test nhưng đánh dấu `// TODO: implementation missing`
 4. **Element có selector MISSING** → bỏ qua, không sinh test, thêm vào SKIP list
+5. **Ngôn ngữ test name:** Chuỗi truyền vào `test('...')` và `test.describe('...')` phải luôn viết **bằng tiếng Anh**. Các giá trị UI gốc (text trên button, label, thông báo lỗi từ app) giữ nguyên ngôn ngữ gốc bên trong thân test. Ví dụ: `test('click register button → navigate to register page', ...)` với `await expect(...).toContainText('新規会員登録')`.
+6. **Assertion chính xác — không dùng `toBeVisible()` khi có data tốt hơn:**
+   - Nếu `scenario.expectedText` có giá trị → dùng `toContainText('...')` thay vì `toBeVisible()`
+   - Nếu `scenario.expectedURL` có giá trị → dùng `toHaveURL('...')` sau navigation
+   - Nếu `validationRule.errorMessages[rule]` có giá trị → dùng `toContainText('...')` cho error assertion
+   - Nếu scenario type là `happy_path` và có redirect → dùng `await page.waitForURL('...')` + `toHaveURL()`
+   - Chỉ dùng `toBeVisible()` khi thực sự không có thông tin gì về expected content
 
 **Cấu trúc file:**
 
@@ -321,4 +328,26 @@ Nếu user muốn sửa hoặc chạy lại, họ sẽ chủ động yêu cầu.
 - Playwright config (`playwright.config.ts`) nếu chưa có → tạo tự động với `webServer` phù hợp framework
 - File `.env.test` → thêm vào `.gitignore` nếu chưa có
 - Khi mode `--coverage`: chỉ hiển thị gap analysis, không tạo file, không hỏi conflict
-- **Tuân thủ thứ tự step:** Thực hiện đúng từng step theo thứ tự (STEP 1 → CHECKPOINT 1 → STEP 2 → CHECKPOINT 2 → STEP 3 → STEP 4 → STEP 5). Không được tự ý skip bước nào. Nếu user hỏi câu gì ngoài luồng, trả lời ngắn gọn rồi **quay lại step tiếp theo ngay**.
+
+---
+
+## Giữ focus trong suốt session
+
+**Tuân thủ thứ tự step:** Thực hiện đúng từng step theo thứ tự (STEP 1 → CHECKPOINT 1 → STEP 2 → CHECKPOINT 2 → STEP 3 → STEP 4 → STEP 5). Không được tự ý skip bước nào.
+
+**State anchor:** Khi đang trong workflow, bắt đầu mỗi response bằng một dòng trạng thái:
+```
+▶ [STEP X — tên step]
+```
+để luôn rõ đang ở đâu trong flow.
+
+**Xử lý câu hỏi ngoài lề:**
+
+- Câu hỏi **liên quan đến task** (về spec, selector, framework, behavior của project) → trả lời đầy đủ, tích hợp vào step đang chạy, tiếp tục.
+- Câu hỏi **không liên quan** (chủ đề khác hoàn toàn) → trả lời trong 1–2 câu, sau đó thêm ngay dòng:
+  ```
+  — Quay lại [STEP X — tên step]: ...
+  ```
+  rồi tiếp tục đúng chỗ đã dừng.
+
+Không để câu hỏi ngoài lề làm reset context của workflow.
