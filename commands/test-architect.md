@@ -256,6 +256,40 @@ Run: npx playwright test --grep "<module>"
 
 ---
 
+## CHECKPOINT 3 — Review test cases trước khi chạy (chỉ khi có flag `--run`)
+
+Hiển thị toàn bộ test cases vừa sinh ra theo dạng tóm tắt, sau đó **dừng lại** và hỏi user:
+
+```
+════════════════════════════════════════════
+  AI TEST ARCHITECT — CHECKPOINT 3
+════════════════════════════════════════════
+
+File: tests/feature/<module>.spec.ts
+
+── Test cases sẽ chạy ─────────────────────
+  [ 1] [happy_path]   <test name>
+  [ 2] [happy_path]   <test name>
+  [ 3] [error_case]   <test name>
+  [ 4] [validation]   <test name>
+  [ 5] [validation]   <test name>
+  [ 6] [missing/TODO] <test name>  ← sẽ FAIL, chưa implement
+
+Tổng: <N> tests  (<X> sẽ run, <Y> TODO/skip)
+
+════════════════════════════════════════════
+Tiếp tục chạy? (Enter = Yes / "no" = dừng / gõ số để bỏ qua test cụ thể, vd: "skip 3,6")
+```
+
+Xử lý input:
+- **Enter / "yes"** → tiếp tục STEP 5, chạy toàn bộ
+- **"no" / "abort"** → dừng hoàn toàn, giữ nguyên file đã sinh
+- **"skip 3,6"** (hoặc bất kỳ dạng liệt kê số) → đánh dấu `test.skip()` cho các test đó trong file trước khi chạy, sau đó tiếp tục STEP 5
+
+**Dừng tại đây, đợi user xác nhận.** Không chạy test cho đến khi có input.
+
+---
+
 ## STEP 5 — Run tests (chỉ khi có flag `--run`)
 
 **5a. Setup auth nếu cần:**
