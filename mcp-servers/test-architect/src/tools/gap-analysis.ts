@@ -33,20 +33,43 @@ function matchesFlow(specFeature: string, flow: CodeFlow): boolean {
   return false;
 }
 
+/**
+ * Safety-net dedup: loại bỏ các scenario có description giống hệt nhau (sau normalize)
+ * trên nhiều spec files. Giữ lại lần xuất hiện đầu tiên.
+ * Việc resolve conflict thực sự (conflict = cùng desc khác outcome) do skill file xử lý
+ * trước khi gọi tool này; hàm này chỉ là lưới an toàn cuối cùng tránh sinh test trùng.
+ */
+function deduplicateSpecFlows(specFlows: ParsedSpec[]): ParsedSpec[] {
+  const seen = new Set<string>();
+  return specFlows
+    .map(spec => ({
+      ...spec,
+      scenarios: spec.scenarios.filter(s => {
+        const key = normalize(s.description);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }),
+    }))
+    .filter(spec => spec.scenarios.length > 0);
+}
+
 export async function gapAnalysis(
   specFlows: ParsedSpec[],
   codeFlows: CodeFlow[]
 ): Promise<GapAnalysisResult> {
+  const dedupedSpecs = deduplicateSpecFlows(specFlows);
+
   const matched:       GapAnalysisResult['matched']       = [];
   const missing:       GapAnalysisResult['missing']       = [];
   const undocumented:  GapAnalysisResult['undocumented']  = [];
 
   for (const flow of codeFlows) {
-    const isDocumented = specFlows.some(s => matchesFlow(s.feature, flow));
+    const isDocumented = dedupedSpecs.some(s => matchesFlow(s.feature, flow));
     if (!isDocumented) undocumented.push({ route: flow.route, entry: flow.entry });
   }
 
-  for (const spec of specFlows) {
+  for (const spec of dedupedSpecs) {
     const relatedFlow = codeFlows.find(f => matchesFlow(spec.feature, f));
 
     for (const scenario of spec.scenarios) {

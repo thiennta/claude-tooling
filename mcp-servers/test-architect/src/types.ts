@@ -62,6 +62,19 @@ export interface ValidationRule {
   canTest: boolean;
 }
 
+export interface SpecConflict {
+  /** 'conflict' = cùng scenario nhưng expectedText/URL khác nhau; 'duplicate' = hoàn toàn giống nhau */
+  type: 'conflict' | 'duplicate';
+  /** Description đại diện (từ file đầu tiên) */
+  description: string;
+  /** Các spec có liên quan (luôn >= 2 phần tử) */
+  specs: Array<{
+    sourceFile: string;
+    feature: string;
+    scenario: Scenario;
+  }>;
+}
+
 export interface GapAnalysisResult {
   matched: Array<{ description: string; hasSelector: boolean }>;
   missing: Array<{ description: string; reason: string }>;

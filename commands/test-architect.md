@@ -51,11 +51,13 @@ Nếu `scan_specs` trả về danh sách rỗng → **không có spec**, tiếp 
 
 Với mỗi spec file tìm được, gọi `parse_markdown_spec` để extract requirements.
 
+**Sau khi parse xong tất cả spec files**, nếu có **từ 2 spec file trở lên**, gọi tool `detect_spec_conflicts` với toàn bộ ParsedSpec đã có.
+
 ---
 
 ## CHECKPOINT 1 — Hiển thị và xin confirm
 
-Hiển thị đầy đủ 3 phần sau, sau đó **dừng lại** và hỏi user:
+Hiển thị đầy đủ **4 phần** sau, sau đó **dừng lại** và hỏi user:
 
 ```
 ════════════════════════════════════════════
@@ -89,13 +91,53 @@ Form: <component>
   - <list thêm dựa trên flows tìm được, ví dụ: sản phẩm active, thẻ test, URL môi trường>
   - Base URL: <baseURL từ detect_framework>
 
+── Spec conflicts ─────────────────────────
+<Nếu KHÔNG có conflict:>
+  ✓ Không phát hiện conflict giữa các spec files
+
+<Nếu CÓ conflict — hiển thị từng mục:>
+  ⚠ CONFLICT (<N> mục) — cùng scenario, khác expected outcome:
+    [C1] "<description>"
+         A: <sourceFile1> → expected: "<expectedText>" / "<expectedURL>"
+         B: <sourceFile2> → expected: "<expectedText>" / "<expectedURL>"
+    [C2] ...
+
+  ℹ DUPLICATE (<N> mục) — cùng scenario, cùng outcome:
+    [D1] "<description>"
+         A: <sourceFile1>
+         B: <sourceFile2>
+    [D2] ...
+
+  Chiến lược resolve:
+    [1] first-file-wins  — Giữ scenario từ file tìm được đầu tiên (mặc định)
+    [2] last-file-wins   — Giữ scenario từ file tìm được sau cùng
+    [3] merge            — Giữ tất cả (gap analysis sẽ dedup duplicate, conflict giữ cả hai)
+    [4] manual           — Hỏi từng conflict một
+
 ════════════════════════════════════════════
 
 Requirements đúng chưa? Có bổ sung gì không?
+<Nếu có conflict:> Chọn chiến lược resolve (1/2/3/4, mặc định = 1):
 (Enter để tiếp tục / gõ để chỉnh sửa)
 ```
 
 **Dừng tại đây, đợi user xác nhận.** Không tiếp tục cho đến khi user confirm.
+
+**Xử lý chiến lược resolve sau khi user confirm:**
+
+- **[1] first-file-wins** (hoặc Enter mặc định): Với mỗi conflict/duplicate, giữ lại scenario từ spec file xuất hiện trước trong danh sách `specFlows`, loại bỏ phiên bản từ file sau.
+- **[2] last-file-wins**: Ngược lại — giữ lại scenario từ spec file xuất hiện sau cùng.
+- **[3] merge**: Không loại bỏ gì. Duplicate sẽ được dedup trong `gap_analysis` (safety net). Conflict giữ cả hai — có thể sinh 2 test cases với expected outcomes khác nhau, báo cho user biết.
+- **[4] manual**: Với mỗi CONFLICT (không áp dụng cho duplicate), hỏi user:
+  ```
+  [C1] "<description>"
+    [A] <sourceFile1>: expected "<...>"
+    [B] <sourceFile2>: expected "<...>"
+  Giữ cái nào? (A/B/both):
+  ```
+  Xử lý xong tất cả conflicts trước khi tiếp tục. Duplicate vẫn áp dụng first-file-wins.
+
+Sau khi resolve xong, cập nhật `specFlows` theo lựa chọn trước khi chuyển sang STEP 2.
 
 ---
 

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { detectFramework } from './tools/detect-framework.js';
 import { scanSpecs } from './tools/scan-specs.js';
 import { parseMarkdownSpec } from './tools/parse-markdown-spec.js';
+import { detectSpecConflicts } from './tools/detect-spec-conflicts.js';
 import { scanCodeFlows } from './tools/scan-code-flows.js';
 import { scanValidationRules } from './tools/scan-validation-rules.js';
 import { gapAnalysis } from './tools/gap-analysis.js';
@@ -92,6 +93,27 @@ const uiElementSchema = z.object({
   component: z.string(),
   elementType: z.string(),
 });
+
+server.tool(
+  'detect_spec_conflicts',
+  'So sánh cross-file để tìm scenarios trùng lặp (duplicate) hoặc mâu thuẫn (conflict) giữa nhiều parsed spec files. Trả về mảng SpecConflict.',
+  {
+    specFlows: z.array(z.object({
+      feature: z.string(),
+      sourceFile: z.string(),
+      scenarios: z.array(z.object({
+        type: z.string(),
+        description: z.string(),
+        expectedText: z.string().optional(),
+        expectedURL: z.string().optional(),
+      })),
+    })).describe('Toàn bộ ParsedSpec từ tất cả spec files đã parse'),
+  },
+  async ({ specFlows }) => {
+    const result = detectSpecConflicts(specFlows as any);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
 
 server.tool(
   'gap_analysis',
