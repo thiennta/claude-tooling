@@ -63,10 +63,14 @@ function collectFailures(suites: any[], failures: TestRunResult['failures']): vo
       for (const test of spec.tests || []) {
         for (const result of test.results || []) {
           if (result.status === 'failed' || result.status === 'timedOut') {
+            const screenshotAttachment = (result.attachments || []).find(
+              (a: any) => a.name === 'screenshot' && a.path
+            );
             failures.push({
-              test:  spec.title,
-              error: result.error?.message || result.error?.value || 'Unknown error',
-              file:  suite.file || '',
+              test:       spec.title,
+              error:      result.error?.message || result.error?.value || 'Unknown error',
+              file:       suite.file || '',
+              screenshot: screenshotAttachment?.path,
             });
           }
         }

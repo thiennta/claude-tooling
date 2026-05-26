@@ -71,17 +71,21 @@ export async function setupPlaywright(
     fs.writeFileSync(configPath, configContent, 'utf-8');
     result.createdConfig = true;
     result.configPath = 'playwright.config.js';
-
-    // Add .env.test to .gitignore if not already there
-    const gitignorePath = path.join(projectPath, '.gitignore');
-    if (fs.existsSync(gitignorePath)) {
-      const gitignore = fs.readFileSync(gitignorePath, 'utf-8');
-      if (!gitignore.includes('.env.test')) {
-        fs.appendFileSync(gitignorePath, '\n.env.test\n', 'utf-8');
-      }
-    }
   } else {
     result.configPath = existingConfig;
+  }
+
+  // Always ensure generated files are in .gitignore (regardless of whether config was created)
+  const gitignorePath = path.join(projectPath, '.gitignore');
+  const gitignoreEntries = ['.env.test', 'playwright-report/', 'test-results/'];
+  if (fs.existsSync(gitignorePath)) {
+    let gitignore = fs.readFileSync(gitignorePath, 'utf-8');
+    const toAdd = gitignoreEntries.filter(entry => !gitignore.includes(entry));
+    if (toAdd.length > 0) {
+      fs.appendFileSync(gitignorePath, '\n' + toAdd.join('\n') + '\n', 'utf-8');
+    }
+  } else {
+    fs.writeFileSync(gitignorePath, gitignoreEntries.join('\n') + '\n', 'utf-8');
   }
 
   // Install Playwright browsers (chromium only for speed)
@@ -149,6 +153,7 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL ?? '${baseURL}',
     trace: 'on',
+    screenshot: 'only-on-failure',
     launchOptions: {
       slowMo: process.env.SLOW_MO ? parseInt(process.env.SLOW_MO) : 0,
     },

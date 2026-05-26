@@ -80,11 +80,11 @@ export async function parseMarkdownSpec(filePath: string): Promise<ParsedSpec[]>
 
 function classifyByKeyword(text: string): ScenarioType {
   const lower = text.toLowerCase();
-  if (/thành công|success|redirect|happy/.test(lower))            return 'happy_path';
-  if (/lỗi|error|fail|invalid|không hợp lệ|expired/.test(lower)) return 'error_case';
-  if (/rollback|concurrent|double|race|edge/.test(lower))         return 'edge_case';
-  if (/required|bắt buộc|validate|format|min|max/.test(lower))   return 'validation';
-  if (/chưa|missing|todo|tbd/.test(lower))                        return 'missing';
+  if (/success|redirect|happy|logged.?in|navigat/.test(lower))              return 'happy_path';
+  if (/error|fail|invalid|expired|unauthorized|forbidden|wrong/.test(lower)) return 'error_case';
+  if (/rollback|concurrent|double|race|edge|duplicate/.test(lower))          return 'edge_case';
+  if (/required|validate|format|min|max|pattern|empty|blank/.test(lower))    return 'validation';
+  if (/missing|todo|tbd|not.?implement|pending/.test(lower))                 return 'missing';
   return 'unknown';
 }
 
@@ -98,7 +98,7 @@ function extractExpected(text: string): { expectedText?: string; expectedURL?: s
   const expectedText = quotes.length > 0 ? quotes[quotes.length - 1][1] : undefined;
 
   // Extract URL from redirect/navigate patterns
-  const urlMatch = text.match(/(?:redirect|navigate|chuyển|đến|to)\s+([/][^\s,)]+)/i);
+  const urlMatch = text.match(/(?:redirect|navigate|to)\s+([/][^\s,)]+)/i);
   const expectedURL = urlMatch?.[1];
 
   return { expectedText, expectedURL };

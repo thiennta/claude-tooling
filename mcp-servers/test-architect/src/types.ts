@@ -72,6 +72,7 @@ export interface TestFailure {
   test: string;
   error: string;
   file: string;
+  screenshot?: string;  // absolute path to screenshot file captured on failure
 }
 
 export interface TestRunResult {
