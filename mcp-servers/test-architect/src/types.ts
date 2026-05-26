@@ -19,6 +19,8 @@ export type ScenarioType = 'happy_path' | 'error_case' | 'edge_case' | 'validati
 export interface Scenario {
   type: ScenarioType;
   description: string;
+  expectedText?: string;   // quoted text extracted from spec (e.g. 'メールアドレスは必須です')
+  expectedURL?: string;    // URL extracted from redirect/navigate descriptions
 }
 
 export interface ParsedSpec {
@@ -54,6 +56,7 @@ export interface CodeFlow {
 export interface ValidationRule {
   field: string;
   rules: string[];
+  errorMessages: Record<string, string>;  // rule → error message text from source code
   selector: SelectorInfo;
   component: string;
   canTest: boolean;
@@ -69,6 +72,7 @@ export interface TestFailure {
   test: string;
   error: string;
   file: string;
+  screenshot?: string;  // absolute path to screenshot file captured on failure
 }
 
 export interface TestRunResult {

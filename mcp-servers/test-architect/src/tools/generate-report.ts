@@ -32,6 +32,7 @@ export interface ReportInput {
       error: string;
       category: string;
       suggestion: string;
+      screenshot?: string;  // absolute path — will be embedded as base64
     }>;
   };
   generatedFile?: string;
@@ -131,6 +132,11 @@ function buildHtml(d: ReportInput): string {
     .empty { color: #999; font-style: italic; font-size: 13px; padding: 8px 0; }
     footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e0e0e0;
              font-size: 12px; color: #999; }
+
+    .screenshot-wrap { margin-top: 8px; }
+    .screenshot-wrap img { max-width: 100%; max-height: 320px; border: 1px solid #e0e0e0;
+                           border-radius: 4px; display: block; cursor: pointer; }
+    .screenshot-wrap img:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
   </style>
 </head>
 <body>
@@ -265,6 +271,7 @@ ${r.failures.length > 0 ? `
       <td>
         <div class="error-block">${esc(f.error)}</div>
         <div class="suggestion">${esc(f.suggestion)}</div>
+        ${screenshotImg(f.screenshot)}
       </td>
     </tr>`).join('')}
   </tbody>
@@ -278,6 +285,18 @@ function selectorRow(label: string, count: number, total: number, badge: string)
     <td>${count}</td>
     <td>${pct}%</td>
   </tr>`;
+}
+
+function screenshotImg(filePath?: string): string {
+  if (!filePath || !fs.existsSync(filePath)) return '';
+  try {
+    const b64 = fs.readFileSync(filePath).toString('base64');
+    return `<div class="screenshot-wrap">
+      <img src="data:image/png;base64,${b64}" alt="screenshot" onclick="this.style.maxHeight=this.style.maxHeight?'':'none'" />
+    </div>`;
+  } catch {
+    return '';
+  }
 }
 
 function esc(s: string): string {

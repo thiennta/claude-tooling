@@ -139,6 +139,13 @@ Dựa trên gap analysis và lựa chọn của user, sinh Playwright test files
 2. **Mỗi validation rule có selector** → 1 `test()` block negative case
 3. **Requirement type = "missing"** → sinh test nhưng đánh dấu `// TODO: implementation missing`
 4. **Element có selector MISSING** → bỏ qua, không sinh test, thêm vào SKIP list
+5. **Ngôn ngữ test name:** Chuỗi truyền vào `test('...')` và `test.describe('...')` phải luôn viết **bằng tiếng Anh**. Các giá trị UI gốc (text trên button, label, thông báo lỗi từ app) giữ nguyên ngôn ngữ gốc bên trong thân test. Ví dụ: `test('click register button → navigate to register page', ...)` với `await expect(...).toContainText('新規会員登録')`.
+6. **Assertion chính xác — không dùng `toBeVisible()` khi có data tốt hơn:**
+   - Nếu `scenario.expectedText` có giá trị → dùng `toContainText('...')` thay vì `toBeVisible()`
+   - Nếu `scenario.expectedURL` có giá trị → dùng `toHaveURL('...')` sau navigation
+   - Nếu `validationRule.errorMessages[rule]` có giá trị → dùng `toContainText('...')` cho error assertion
+   - Nếu scenario type là `happy_path` và có redirect → dùng `await page.waitForURL('...')` + `toHaveURL()`
+   - Chỉ dùng `toBeVisible()` khi thực sự không có thông tin gì về expected content
 
 **Cấu trúc file:**
 
@@ -249,6 +256,40 @@ Run: npx playwright test --grep "<module>"
 
 ---
 
+## CHECKPOINT 3 — Review test cases trước khi chạy (chỉ khi có flag `--run`)
+
+Hiển thị toàn bộ test cases vừa sinh ra theo dạng tóm tắt, sau đó **dừng lại** và hỏi user:
+
+```
+════════════════════════════════════════════
+  AI TEST ARCHITECT — CHECKPOINT 3
+════════════════════════════════════════════
+
+File: tests/feature/<module>.spec.ts
+
+── Test cases sẽ chạy ─────────────────────
+  [ 1] [happy_path]   <test name>
+  [ 2] [happy_path]   <test name>
+  [ 3] [error_case]   <test name>
+  [ 4] [validation]   <test name>
+  [ 5] [validation]   <test name>
+  [ 6] [missing/TODO] <test name>  ← sẽ FAIL, chưa implement
+
+Tổng: <N> tests  (<X> sẽ run, <Y> TODO/skip)
+
+════════════════════════════════════════════
+Tiếp tục chạy? (Enter = Yes / "no" = dừng / gõ số để bỏ qua test cụ thể, vd: "skip 3,6")
+```
+
+Xử lý input:
+- **Enter / "yes"** → tiếp tục STEP 5, chạy toàn bộ
+- **"no" / "abort"** → dừng hoàn toàn, giữ nguyên file đã sinh
+- **"skip 3,6"** (hoặc bất kỳ dạng liệt kê số) → đánh dấu `test.skip()` cho các test đó trong file trước khi chạy, sau đó tiếp tục STEP 5
+
+**Dừng tại đây, đợi user xác nhận.** Không chạy test cho đến khi có input.
+
+---
+
 ## STEP 5 — Run tests (chỉ khi có flag `--run`)
 
 **5a. Setup auth nếu cần:**
@@ -276,6 +317,10 @@ Gọi tool `classify_results` với danh sách failures.
 
 Gọi tool `generate_report` với `projectPath`, toàn bộ dữ liệu từ các bước trước, và `testResults` (passed, failed, skipped, duration, failures đã classify). HTML report lần này sẽ có đầy đủ kết quả test.
 
+**`generate_report` phải luôn được gọi và phải luôn trả về `filePath` HTML — bắt buộc, dù test pass hay fail.**
+
+> ℹ Tool `run_tests` đã chạy với `--reporter=json --reporter=html` nên Playwright HTML report (`playwright-report/index.html`) được sinh tự động. Nếu vì lý do nào đó chưa có, chạy một lần duy nhất: `npx playwright show-report` hoặc `npx playwright test --reporter=html` để tạo lại — sau đó dừng.
+
 Hiển thị:
 
 ```
@@ -299,9 +344,19 @@ Hiển thị:
     Fix: Thêm page.route() để mock API
 
 ── HTML Report ────────────────────────────
-  <filePath từ generate_report>
+  <filePath từ generate_report>   ← LUÔN HIỂN THỊ, không được bỏ qua
 ════════════════════════════════════════════
 ```
+
+**Sau khi hiển thị xong block trên → DỪNG HOÀN TOÀN:**
+- Không tự ý sửa test file
+- Không chạy lại test để "fix" lỗi
+- Không hỏi user có muốn fix không
+- Không đề xuất thêm bất kỳ bước nào
+
+Ngoại lệ duy nhất được phép: nếu `playwright-report/index.html` chưa tồn tại thì chạy một lần `npx playwright test <filter> --reporter=html` để sinh report, sau đó dừng ngay.
+
+Nếu user muốn sửa hoặc chạy lại, họ sẽ chủ động yêu cầu.
 
 ---
 
@@ -311,4 +366,26 @@ Hiển thị:
 - Playwright config (`playwright.config.ts`) nếu chưa có → tạo tự động với `webServer` phù hợp framework
 - File `.env.test` → thêm vào `.gitignore` nếu chưa có
 - Khi mode `--coverage`: chỉ hiển thị gap analysis, không tạo file, không hỏi conflict
-- **Tuân thủ thứ tự step:** Thực hiện đúng từng step theo thứ tự (STEP 1 → CHECKPOINT 1 → STEP 2 → CHECKPOINT 2 → STEP 3 → STEP 4 → STEP 5). Không được tự ý skip bước nào. Nếu user hỏi câu gì ngoài luồng, trả lời ngắn gọn rồi **quay lại step tiếp theo ngay**.
+
+---
+
+## Giữ focus trong suốt session
+
+**Tuân thủ thứ tự step:** Thực hiện đúng từng step theo thứ tự (STEP 1 → CHECKPOINT 1 → STEP 2 → CHECKPOINT 2 → STEP 3 → STEP 4 → STEP 5). Không được tự ý skip bước nào.
+
+**State anchor:** Khi đang trong workflow, bắt đầu mỗi response bằng một dòng trạng thái:
+```
+▶ [STEP X — tên step]
+```
+để luôn rõ đang ở đâu trong flow.
+
+**Xử lý câu hỏi ngoài lề:**
+
+- Câu hỏi **liên quan đến task** (về spec, selector, framework, behavior của project) → trả lời đầy đủ, tích hợp vào step đang chạy, tiếp tục.
+- Câu hỏi **không liên quan** (chủ đề khác hoàn toàn) → trả lời trong 1–2 câu, sau đó thêm ngay dòng:
+  ```
+  — Quay lại [STEP X — tên step]: ...
+  ```
+  rồi tiếp tục đúng chỗ đã dừng.
+
+Không để câu hỏi ngoài lề làm reset context của workflow.

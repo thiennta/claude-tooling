@@ -53,19 +53,22 @@ export async function parseMarkdownSpec(filePath: string): Promise<ParsedSpec[]>
     const checklistMatch = trimmed.match(/^-\s+\[( |x|X)\]\s+(.+)/);
     if (checklistMatch) {
       const done = checklistMatch[1].toLowerCase() === 'x';
-      currentScenarios.push({ type: done ? 'happy_path' : 'missing', description: checklistMatch[2] });
+      const desc = checklistMatch[2];
+      currentScenarios.push({ type: done ? 'happy_path' : 'missing', description: desc, ...extractExpected(desc) });
       continue;
     }
 
     const bulletMatch = trimmed.match(/^[-*]\s+(.+)/);
     if (bulletMatch && !inGWT) {
-      currentScenarios.push({ type: classifyByKeyword(bulletMatch[1]), description: bulletMatch[1] });
+      const desc = bulletMatch[1];
+      currentScenarios.push({ type: classifyByKeyword(desc), description: desc, ...extractExpected(desc) });
       continue;
     }
 
     const numberedMatch = trimmed.match(/^\d+[.)]\s+(.+)/);
     if (numberedMatch && !inGWT) {
-      currentScenarios.push({ type: classifyByKeyword(numberedMatch[1]), description: numberedMatch[1] });
+      const desc = numberedMatch[1];
+      currentScenarios.push({ type: classifyByKeyword(desc), description: desc, ...extractExpected(desc) });
     }
   }
 
@@ -77,14 +80,26 @@ export async function parseMarkdownSpec(filePath: string): Promise<ParsedSpec[]>
 
 function classifyByKeyword(text: string): ScenarioType {
   const lower = text.toLowerCase();
-  if (/thành công|success|redirect|happy/.test(lower))            return 'happy_path';
-  if (/lỗi|error|fail|invalid|không hợp lệ|expired/.test(lower)) return 'error_case';
-  if (/rollback|concurrent|double|race|edge/.test(lower))         return 'edge_case';
-  if (/required|bắt buộc|validate|format|min|max/.test(lower))   return 'validation';
-  if (/chưa|missing|todo|tbd/.test(lower))                        return 'missing';
+  if (/success|redirect|happy|logged.?in|navigat/.test(lower))              return 'happy_path';
+  if (/error|fail|invalid|expired|unauthorized|forbidden|wrong/.test(lower)) return 'error_case';
+  if (/rollback|concurrent|double|race|edge|duplicate/.test(lower))          return 'edge_case';
+  if (/required|validate|format|min|max|pattern|empty|blank/.test(lower))    return 'validation';
+  if (/missing|todo|tbd|not.?implement|pending/.test(lower))                 return 'missing';
   return 'unknown';
 }
 
 function classifyGWT(gwt: { given?: string; when?: string; then?: string }): ScenarioType {
   return classifyByKeyword([gwt.given, gwt.when, gwt.then].filter(Boolean).join(' '));
+}
+
+function extractExpected(text: string): { expectedText?: string; expectedURL?: string } {
+  // Extract quoted text: 'foo', "foo", 「foo」 — take the last quoted string (usually the outcome)
+  const quotes = [...text.matchAll(/['"「]([^'"」]{2,})['"」]/g)];
+  const expectedText = quotes.length > 0 ? quotes[quotes.length - 1][1] : undefined;
+
+  // Extract URL from redirect/navigate patterns
+  const urlMatch = text.match(/(?:redirect|navigate|to)\s+([/][^\s,)]+)/i);
+  const expectedURL = urlMatch?.[1];
+
+  return { expectedText, expectedURL };
 }
