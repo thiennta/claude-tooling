@@ -11,7 +11,7 @@ interface RouteEntry {
 
 // ── Main entry ───────────────────────────────────────────────────────────────
 
-export async function scanCodeFlows(
+export async function scanUiFlows(
   projectPath: string,
   framework: string,
   moduleFilter?: string

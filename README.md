@@ -2,7 +2,7 @@
 
 Shared Claude Code commands và MCP servers cho team NTA.
 
-## Cài đặt (mọi máy Windows/macOS/Linux)
+## Cài đặt
 
 **Yêu cầu:** Node.js 18+
 
@@ -12,95 +12,131 @@ cd claude-tooling
 node setup.js
 ```
 
-Sau đó **restart Claude Code** — `/test-architect` sẵn sàng dùng ngay.
+Restart Claude Code — các commands sẵn sàng dùng ngay.
 
 ## Cập nhật
 
 ```bash
-cd claude-tooling
-git pull
-node setup.js
+cd claude-tooling && git pull && node setup.js
 ```
 
 ---
 
-## Nội dung
+## Commands
 
-| Thành phần | Mô tả |
-|------------|-------|
-| `commands/test-architect.md` | Slash command `/test-architect` — sinh Playwright E2E tests từ spec |
-| `mcp-servers/test-architect/` | MCP server cung cấp các tools phân tích spec, code và sinh test |
+| Command | Dùng cho |
+|---------|----------|
+| `/test-ui` | Sinh Playwright **UI/E2E tests** từ spec + source FE |
+| `/test-api` | Sinh Playwright **API tests** từ spec + source BE |
 
----
+### `/test-ui` — UI/E2E tests
 
-## Dùng `/test-architect`
-
-```
-/test-architect                    # Toàn bộ project
-/test-architect --module <tên>     # Chỉ module cụ thể
-/test-architect --run              # Sinh test và chạy luôn
-/test-architect --coverage         # Chỉ xem gap analysis
-```
-
----
-
-## Luồng hoạt động
+Chạy trên **frontend** project. Dùng Playwright `page` fixture (browser).
 
 ```
-scan_specs
-    └─► parse_markdown_spec (mỗi file)
-            └─► detect_spec_conflicts  ← NEW (khi có ≥ 2 spec files)
-                    │
-                    ▼
-            CHECKPOINT 1 — hiển thị requirements + conflicts, đợi confirm
-                    │
-                    ▼
-            detect_framework + scan_code_flows + scan_validation_rules
-                    │
-                    ▼
-            gap_analysis  (safety-net dedup tự động)
-                    │
-                    ▼
-            CHECKPOINT 2 — hiển thị gap report, đợi confirm
-                    │
-                    ▼
-            generate_report → sinh file Playwright .spec.ts
+/test-ui                        # Toàn bộ project
+/test-ui --module <tên>         # Chỉ module cụ thể
+/test-ui --project <path>       # Chỉ định FE project path
+/test-ui --run                  # Sinh test và chạy luôn
+/test-ui --coverage             # Chỉ xem gap analysis, không sinh file
+```
+
+### `/test-api` — API tests
+
+Chạy trên **backend** project. Dùng Playwright `request` fixture (no browser).  
+BE server phải đang chạy trước khi test (`reuseExistingServer: true`).
+
+```
+/test-api                       # Toàn bộ project
+/test-api --module <tên>        # Chỉ module cụ thể
+/test-api --project <path>      # Chỉ định BE project path (thường khác FE)
+/test-api --run                 # Sinh test và chạy luôn
 ```
 
 ---
 
 ## MCP Tools
 
+### Shared — dùng cho cả UI và API
+
 | Tool | Mô tả |
 |------|-------|
-| `detect_framework` | Phát hiện framework (Next.js, Nuxt, Vite…) và base URL |
-| `scan_specs` | Quét các spec/requirement files trong project |
-| `parse_markdown_spec` | Trích xuất features, scenarios, expected outcomes từ Markdown spec |
-| `detect_spec_conflicts` | **[MỚI]** So sánh cross-file để tìm scenarios trùng lặp (`duplicate`) hoặc mâu thuẫn (`conflict`) giữa nhiều spec files |
-| `scan_code_flows` | Quét code để tìm các route/flow đã implement |
-| `scan_validation_rules` | Phát hiện validation rules trong code (regex, zod, yup…) |
-| `gap_analysis` | So sánh spec requirements vs code flows → matched / missing / undocumented |
-| `generate_report` | Sinh file Playwright `.spec.ts` từ kết quả phân tích |
+| `scan_specs` | Tìm spec/requirement files (markdown) trong project |
+| `parse_markdown_spec` | Extract features, scenarios, expected outcomes từ Markdown spec |
+| `detect_spec_conflicts` | Phát hiện scenarios trùng lặp (`duplicate`) hoặc mâu thuẫn (`conflict`) giữa nhiều spec files |
+| `gap_analysis` | So sánh spec vs code → matched / missing / undocumented |
 | `setup_playwright` | Cài đặt và cấu hình Playwright nếu chưa có |
-| `run_tests` | Chạy Playwright tests và trả về kết quả |
-| `classify_results` | Phân loại kết quả test (pass/fail/flaky) |
+| `run_tests` | Chạy Playwright tests, trả về kết quả có cấu trúc |
+| `classify_results` | Phân loại test failures: `missing_testid` / `needs_mock` / `real_bug` / `timeout` |
+| `generate_report` | Sinh HTML report tổng hợp kết quả phân tích |
+
+### UI-only — chỉ dùng cho `/test-ui`
+
+| Tool | Mô tả |
+|------|-------|
+| `detect_ui_framework` | Detect FE framework (Nuxt, Next.js, Vue, React...) và base URL |
+| `scan_ui_flows` | Scan pages/components để build flow map với UI element selectors |
+| `scan_ui_validation` | Scan form validation rules (Zod, Yup, VeeValidate, HTML attrs) |
+
+### API/BE-only — chỉ dùng cho `/test-api`
+
+| Tool | Mô tả |
+|------|-------|
+| `detect_be_framework` | Detect BE framework (NestJS, Express, Laravel, Rails, Spring Boot, FastAPI, Django...) + DB client/type |
+| `scan_api_routes` | Scan route/controller files → danh sách endpoints với method, path, auth hint |
+| `scan_api_flows` | Scan service layer → business flows với DB operations (dùng lại cho `/test-db` sau này) |
 
 ---
 
-## Phát hiện và giải quyết conflict giữa nhiều spec files
+## Luồng hoạt động
 
-Khi project có **từ 2 spec files trở lên**, `/test-architect` tự động chạy `detect_spec_conflicts` để phát hiện:
+### `/test-ui`
+```
+detect_ui_framework + scan_specs
+        ↓
+scan_ui_flows + scan_ui_validation + parse_markdown_spec
+        ↓
+detect_spec_conflicts  (nếu ≥ 2 spec files)
+        ↓
+CHECKPOINT 1 — xác nhận requirements + resolve conflicts
+        ↓
+gap_analysis
+        ↓
+CHECKPOINT 2 — conflict check với file test cũ
+        ↓
+sinh tests/feature/<module>.spec.ts  →  generate_report
+        ↓ (nếu --run)
+run_tests → classify_results → generate_report
+```
 
-- **`conflict`** — cùng scenario (description tương tự nhau), nhưng `expectedText` hoặc `expectedURL` **khác nhau** giữa các file
-- **`duplicate`** — cùng scenario, cùng expected outcome (trùng lặp hoàn toàn)
+### `/test-api`
+```
+detect_be_framework + scan_specs
+        ↓
+scan_api_routes + scan_api_flows + parse_markdown_spec
+        ↓
+detect_spec_conflicts  (nếu ≥ 2 spec files)
+        ↓
+CHECKPOINT 1 — xác nhận BE info + resolve conflicts
+        ↓
+gap_analysis
+        ↓
+CHECKPOINT 2 — conflict check với file test cũ
+        ↓
+sinh e2e/api/<module>.api.spec.ts  →  generate_report
+        ↓ (nếu --run)
+run_tests → classify_results → generate_report
+```
 
-Kết quả được hiển thị tại **CHECKPOINT 1** và user chọn một trong 4 chiến lược resolve:
+---
+
+## Spec conflict resolution
+
+Khi có **≥ 2 spec files**, tool tự động detect và cho user chọn chiến lược tại CHECKPOINT 1:
 
 | Chiến lược | Hành vi |
 |------------|---------|
-| `[1] first-file-wins` *(mặc định)* | Giữ scenario từ spec file xuất hiện trước, loại bỏ phiên bản sau |
-| `[2] last-file-wins` | Giữ scenario từ spec file xuất hiện sau cùng |
-| `[3] merge` | Giữ tất cả — duplicate sẽ được dedup bởi `gap_analysis`, conflict giữ cả hai outcomes |
-| `[4] manual` | Hỏi từng conflict một (A / B / both); duplicate tự động áp dụng first-file-wins |
-
-> **Safety net:** `gap_analysis` luôn dedup các scenario có description giống hệt nhau trước khi phân tích, bất kể chiến lược nào được chọn.
+| `[1] first-file-wins` *(mặc định)* | Giữ scenario từ file tìm được trước |
+| `[2] last-file-wins` | Giữ scenario từ file tìm được sau |
+| `[3] merge` | Giữ tất cả — `gap_analysis` tự dedup exact duplicates |
+| `[4] manual` | Hỏi từng conflict một (A / B / both) |

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { FrameworkInfo } from '../types.js';
 
-export async function detectFramework(projectPath: string): Promise<FrameworkInfo> {
+export async function detectUiFramework(projectPath: string): Promise<FrameworkInfo> {
   const packageJsonPath = path.join(projectPath, 'package.json');
   const composerPath = path.join(projectPath, 'composer.json');
   const requirementsPath = path.join(projectPath, 'requirements.txt');

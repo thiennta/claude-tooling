@@ -104,3 +104,65 @@ export interface ClassifiedFailure {
   category: FailureCategory;
   suggestion: string;
 }
+
+// ─── Backend / API types (dùng cho /test-api và /test-db sau này) ─────────────
+
+export interface BackendFrameworkInfo {
+  /** nestjs | express | fastify | laravel | rails | spring | fastapi | django | flask | unknown */
+  framework: string;
+  /** typescript | javascript | php | ruby | java | python | unknown */
+  language: string;
+  /** npm run start:dev | php artisan serve | uvicorn main:app --reload | ... */
+  devCommand: string;
+  /** http://localhost:3000 */
+  baseURL: string;
+  /** /api | /api/v1 | '' (rỗng = không có prefix) */
+  apiPrefix: string;
+  /** prisma | typeorm | sequelize | mongoose | eloquent | activerecord | sqlalchemy | unknown | none */
+  dbClient: string;
+  /** postgresql | mysql | sqlite | mongodb | unknown */
+  dbType: string;
+  /** file bằng chứng detect: nest-cli.json | artisan | Gemfile | pom.xml | ... */
+  configFile: string;
+  hasOpenApiSpec: boolean;
+  openApiSpecPath?: string;
+  /** Mức độ chắc chắn của detection */
+  confidence: 'high' | 'medium' | 'low';
+  /** Danh sách bằng chứng để hiển thị tại CHECKPOINT 1 */
+  detectionNotes: string[];
+}
+
+export interface ApiRoute {
+  /** GET | POST | PUT | DELETE | PATCH */
+  method: string;
+  /** /api/auth/login */
+  path: string;
+  /** AuthController.login | loginHandler */
+  handler: string;
+  /** relative path: src/auth/auth.controller.ts */
+  file: string;
+  /** ['id', 'userId'] */
+  params: string[];
+  requiresAuth: boolean;
+  /** DTO/schema name hint: LoginDto, CreateOrderRequest */
+  requestBodyHint?: string;
+  /** return type hint: TokenResponse, User */
+  responseHint?: string;
+}
+
+export interface ApiFlow {
+  /** service method: createOrder | OrderService.create */
+  name: string;
+  /** relative file path */
+  entry: string;
+  /** associated route nếu trace được: POST /api/orders */
+  route?: string;
+  /** tất cả operations (DB + service + external) */
+  operations: string[];
+  /** DB-only operations — dùng cho /test-db sau này */
+  dbOperations: string[];
+  /** inter-service calls */
+  serviceOperations: string[];
+  /** route handlers gọi service method này */
+  calledBy: string[];
+}

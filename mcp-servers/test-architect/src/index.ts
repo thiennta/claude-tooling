@@ -1,12 +1,15 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { detectFramework } from './tools/detect-framework.js';
+import { detectUiFramework } from './tools/detect-ui-framework.js';
+import { detectBeFramework } from './tools/detect-be-framework.js';
+import { scanApiRoutes } from './tools/scan-api-routes.js';
+import { scanApiFlows } from './tools/scan-api-flows.js';
 import { scanSpecs } from './tools/scan-specs.js';
 import { parseMarkdownSpec } from './tools/parse-markdown-spec.js';
 import { detectSpecConflicts } from './tools/detect-spec-conflicts.js';
-import { scanCodeFlows } from './tools/scan-code-flows.js';
-import { scanValidationRules } from './tools/scan-validation-rules.js';
+import { scanUiFlows } from './tools/scan-ui-flows.js';
+import { scanUiValidation } from './tools/scan-ui-validation.js';
 import { gapAnalysis } from './tools/gap-analysis.js';
 import { runTests } from './tools/run-tests.js';
 import { classifyResults } from './tools/classify-results.js';
@@ -19,11 +22,11 @@ const server = new McpServer({
 });
 
 server.tool(
-  'detect_framework',
-  'Detect the framework, dev command, and base URL of a project by reading config files',
-  { projectPath: z.string().describe('Absolute path to the project root') },
+  'detect_ui_framework',
+  'Detect the UI/frontend framework (Nuxt, Next.js, Vue, React, Angular...), dev command, and base URL of a project',
+  { projectPath: z.string().describe('Absolute path to the frontend project root') },
   async ({ projectPath }) => {
-    const result = await detectFramework(projectPath);
+    const result = await detectUiFramework(projectPath);
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -53,29 +56,29 @@ server.tool(
 );
 
 server.tool(
-  'scan_code_flows',
-  'Scan project pages/routes/components to build a flow map with UI element selectors',
+  'scan_ui_flows',
+  'Scan UI pages/routes/components to build a flow map with UI element selectors. UI-only tool.',
   {
-    projectPath: z.string().describe('Absolute path to the project root'),
-    framework: z.string().describe('Framework name (nuxt, nextjs, laravel, vue, react, etc.)'),
+    projectPath: z.string().describe('Absolute path to the frontend project root'),
+    framework: z.string().describe('UI framework name (nuxt, nextjs, laravel, vue, react, etc.)'),
     moduleFilter: z.string().optional().describe('Optional module name to filter pages'),
   },
   async ({ projectPath, framework, moduleFilter }) => {
-    const result = await scanCodeFlows(projectPath, framework, moduleFilter);
+    const result = await scanUiFlows(projectPath, framework, moduleFilter);
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   }
 );
 
 server.tool(
-  'scan_validation_rules',
-  'Scan form components for validation rules from Yup, Zod, VeeValidate, and HTML attributes',
+  'scan_ui_validation',
+  'Scan UI form components for validation rules from Yup, Zod, VeeValidate, and HTML attributes. UI-only tool.',
   {
-    projectPath: z.string().describe('Absolute path to the project root'),
-    framework: z.string().describe('Framework name'),
+    projectPath: z.string().describe('Absolute path to the frontend project root'),
+    framework: z.string().describe('UI framework name'),
     moduleFilter: z.string().optional().describe('Optional module name to filter'),
   },
   async ({ projectPath, framework, moduleFilter }) => {
-    const result = await scanValidationRules(projectPath, framework, moduleFilter);
+    const result = await scanUiValidation(projectPath, framework, moduleFilter);
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -226,6 +229,47 @@ server.tool(
   },
   async ({ projectPath, reportInput }) => {
     const result = await generateReport(projectPath, reportInput as any);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ─── BE / API tools (dùng cho /test-api và /test-db) ─────────────────────────
+
+server.tool(
+  'detect_be_framework',
+  'Detect BE framework, language, dev command, base URL, DB client/type và OpenAPI spec từ source code của backend project',
+  { projectPath: z.string().describe('Absolute path to the backend project root') },
+  async ({ projectPath }) => {
+    const result = await detectBeFramework(projectPath);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'scan_api_routes',
+  'Scan BE route/controller files để lấy danh sách API endpoints. Hỗ trợ: NestJS, Express, Fastify, Laravel, Rails, Spring Boot, FastAPI, Django, Flask.',
+  {
+    projectPath:  z.string().describe('Absolute path to the backend project root'),
+    framework:    z.string().describe('BE framework: nestjs | express | fastify | laravel | rails | spring | fastapi | django | flask'),
+    apiPrefix:    z.string().optional().describe('API prefix (default: /api)'),
+    moduleFilter: z.string().optional().describe('Filter routes by module/path keyword'),
+  },
+  async ({ projectPath, framework, apiPrefix, moduleFilter }) => {
+    const result = await scanApiRoutes(projectPath, framework, apiPrefix, moduleFilter);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'scan_api_flows',
+  'Scan tầng service/use-case của BE để tìm business flows và DB operations. Kết quả dùng cho gap_analysis và /test-db sau này.',
+  {
+    projectPath:  z.string().describe('Absolute path to the backend project root'),
+    framework:    z.string().describe('BE framework: nestjs | express | fastify | laravel | rails | spring | fastapi | django | flask'),
+    moduleFilter: z.string().optional().describe('Filter flows by module/service name keyword'),
+  },
+  async ({ projectPath, framework, moduleFilter }) => {
+    const result = await scanApiFlows(projectPath, framework, moduleFilter);
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   }
 );

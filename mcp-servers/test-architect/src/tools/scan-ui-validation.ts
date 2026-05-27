@@ -3,7 +3,7 @@ import * as path from 'path';
 import fg from 'fast-glob';
 import type { ValidationRule, SelectorInfo } from '../types.js';
 
-export async function scanValidationRules(
+export async function scanUiValidation(
   projectPath: string,
   framework: string,
   moduleFilter?: string
