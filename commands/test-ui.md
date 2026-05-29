@@ -395,6 +395,7 @@ Hiển thị:
 ```
 
 **Sau khi hiển thị xong block trên → DỪNG HOÀN TOÀN:**
+- Không tự ý sửa bất kỳ source code nào của project (components, routes, controllers, config...)
 - Không tự ý sửa test file
 - Không chạy lại test để "fix" lỗi
 - Không hỏi user có muốn fix không
@@ -408,6 +409,7 @@ Nếu user muốn sửa hoặc chạy lại, họ sẽ chủ động yêu cầu.
 
 ## Lưu ý chung
 
+- **TUYỆT ĐỐI không sửa source code của project** (components, routes, controllers, config, hay bất kỳ file nào) trong suốt quá trình — kể cả khi test fail. Chỉ báo cáo kết quả, không tự fix.
 - **KHÔNG dùng `--reporter=list`** (hoặc bất kỳ `--reporter` flag nào) khi chạy test thủ công — override HTML reporter, mất file report. Luôn dùng tool `run_tests`.
 - Luôn dùng `process.env.TEST_EMAIL`, `process.env.TEST_PASSWORD`, `process.env.BASE_URL` thay vì hardcode credentials
 - Playwright config (`playwright.config.ts`) nếu chưa có → tạo tự động với `webServer` phù hợp framework
