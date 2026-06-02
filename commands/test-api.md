@@ -8,6 +8,8 @@ Bạn là AI Test API Architect. Nhiệm vụ: đọc source code **backend** v�
 - `--project <path>` — đường dẫn tuyệt đối đến **backend** project (mặc định: cwd)
 - `--spec <path>` — đường dẫn tới spec file hoặc thư mục
 - `--run` — sau khi sinh test, chạy luôn và báo kết quả
+- `--sheet-spec <url>` — đọc spec từ Google Sheet thay vì markdown file
+- `--sheet-report <url>` — ghi test scenarios ra Google Sheet để tester review trước khi chạy
 
 Nếu không có `--project`, dùng cwd.
 
@@ -20,7 +22,13 @@ Xác định `projectPath` từ `--project` hoặc cwd.
 **Wave 1 — chạy song song:**
 
 1. Gọi `detect_be_framework` với `projectPath`
-2. Gọi `scan_specs` với `projectPath` + `specPath` + `moduleFilter`
+2. Nếu có `--sheet-spec`:
+   - Gọi tool `read_sheet_spec` với `sheetUrl` + `sheetName` (nếu có)
+   - Claude tự đọc hiểu raw rows, extract scenarios — không yêu cầu format cố định
+   - Bỏ qua `scan_specs` và `parse_markdown_spec`
+
+   Nếu không có `--sheet-spec`:
+   - Gọi `scan_specs` với `projectPath` + `specPath` + `moduleFilter`
 
 **Wave 2 — sau khi có kết quả Wave 1, chạy song song:**
 
@@ -286,7 +294,44 @@ Run: npx playwright test e2e/api/<module>.api.spec.ts
 
 ---
 
-## CHECKPOINT 3 — Review test cases (chỉ khi có `--run`)
+## STEP 3b — Ghi scenarios ra Google Sheet (chỉ khi có `--sheet-report`)
+
+Gọi tool `write_sheet_report` với `sheetUrl`, `module`, `date`, `scenarios`.
+
+> ⚠ **TUYỆT ĐỐI không dùng WebFetch, fetch(), hay HTTP request để ghi vào Google Sheets.**
+> Luôn dùng tool `write_sheet_report`. Nếu tool fail → hiển thị error message và dừng, không tự fallback.
+
+Hiển thị và **dừng lại** chờ tester review:
+
+```
+════════════════════════════════════════════
+  Kịch bản test đã ghi ra Google Sheet
+════════════════════════════════════════════
+
+Tab:  <module>_<date>
+Link: <url trực tiếp đến tab>
+
+Tester mở link để review:
+  - Xóa row không muốn chạy
+  - Sửa nội dung test nếu cần (Expected, Test Name)
+  - Ghi chú vào cột Notes nếu muốn (Claude không đọc cột này)
+
+Nhấn Enter khi đã review xong để tiếp tục...
+════════════════════════════════════════════
+```
+
+**Dừng tại đây, đợi user nhấn Enter.**
+
+Sau khi user Enter → gọi `read_back_sheet` → sync lại test file:
+- Row bị xóa → `test.skip()`
+- Row bị sửa → update assertion
+- Row còn nguyên → giữ nguyên
+
+---
+
+## CHECKPOINT 3 — Review test cases (chỉ khi có `--run` VÀ không có `--sheet-report`)
+
+Nếu có `--sheet-report`: bỏ qua CHECKPOINT 3 — tester đã review trên Sheet ở STEP 3b.
 
 Giống CHECKPOINT 3 của `/test-architect` — hiển thị danh sách tests, hỏi confirm trước khi chạy.
 
@@ -316,7 +361,10 @@ Gọi `run_tests` với `projectPath` + `filter` = tên module + `.api`.
 
 **5c. Classify, report, hiển thị:**
 
-Gọi `classify_results` rồi `generate_report` với `testResults`. Hiển thị kết quả theo format giống `/test-architect` STEP 5.
+Gọi `classify_results` rồi `generate_report` với `testResults` bao gồm:
+- `passed`, `failed`, `skipped`, `duration`
+- `failures`: danh sách failures đã classify
+- `allTests`: **toàn bộ** danh sách test cases từ `run_tests` (field `allTests` trong `TestRunResult`) — bắt buộc để report hiển thị đầy đủ test list kèm evidence.
 
 **Sau khi hiển thị xong → DỪNG HOÀN TOÀN.** Không tự sửa, không chạy lại.
 
@@ -329,7 +377,7 @@ Gọi `classify_results` rồi `generate_report` với `testResults`. Hiển th�
 - BE server phải chạy trước khi test — `playwright.config.js` dùng `reuseExistingServer: true`
 - DB cleanup trong `afterEach` là comment mặc định — user tự uncomment và adjust path import
 - File test đặt trong `e2e/api/` (tách khỏi `e2e/` của UI tests để tránh nhầm lẫn)
-- `e2e/api/` và `playwright-report/` đã được thêm vào `.gitignore` bởi `setup_playwright`
+- `e2e/api/` và `test-architect-reports/` đã được thêm vào `.gitignore` bởi `setup_playwright`
 
 ---
 

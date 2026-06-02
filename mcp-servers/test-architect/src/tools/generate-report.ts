@@ -32,7 +32,15 @@ export interface ReportInput {
       error: string;
       category: string;
       suggestion: string;
-      screenshot?: string;  // absolute path — will be embedded as base64
+      screenshot?: string;
+    }>;
+    allTests?: Array<{
+      test: string;
+      file: string;
+      status: 'passed' | 'failed' | 'skipped';
+      duration: number;
+      screenshot?: string;
+      error?: string;
     }>;
   };
   generatedFile?: string;
@@ -137,6 +145,38 @@ function buildHtml(d: ReportInput): string {
     .screenshot-wrap img { max-width: 100%; max-height: 320px; border: 1px solid #e0e0e0;
                            border-radius: 4px; display: block; cursor: pointer; }
     .screenshot-wrap img:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+
+    /* Test list — Playwright style */
+    .test-list { margin-top: 8px; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; }
+    .test-row {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 9px 14px; border-bottom: 1px solid #f0f0f0;
+      font-size: 13px;
+    }
+    .test-row:last-child { border-bottom: none; }
+    .test-row.pass  { background: #fff; }
+    .test-row.fail  { background: #fff8f8; }
+    .test-row.skip  { background: #fafafa; }
+    .test-icon { flex-shrink: 0; margin-top: 1px; font-size: 14px; }
+    .test-icon.pass  { color: #2e7d32; }
+    .test-icon.fail  { color: #c62828; }
+    .test-icon.skip  { color: #9e9e9e; }
+    .test-name { flex: 1; font-weight: 500; }
+    .test-file { font-size: 11px; color: #999; margin-top: 2px; }
+    .test-duration { flex-shrink: 0; font-size: 12px; color: #999; margin-top: 2px; }
+    .test-error { margin-top: 6px; font-family: monospace; font-size: 11px;
+                  background: #fce4ec; border-radius: 3px; padding: 6px 10px;
+                  white-space: pre-wrap; word-break: break-all; color: #b71c1c; }
+
+    /* Filter bar */
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+    .filter-btn {
+      padding: 4px 12px; border-radius: 20px; border: 1px solid #e0e0e0;
+      font-size: 12px; font-weight: 600; cursor: pointer; background: #fff; color: #555;
+      transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: #999; }
+    .filter-btn.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
   </style>
 </head>
 <body>
@@ -238,20 +278,42 @@ ${hasTestResults ? buildTestResultsSection(d.testResults!) : ''}
 }
 
 function buildTestResultsSection(r: NonNullable<ReportInput['testResults']>): string {
+  const total = (r.allTests?.length) || (r.passed + r.failed + r.skipped);
+
+  const rows = (r.allTests || []).map(t => {
+    const icon   = t.status === 'passed' ? '✓' : t.status === 'failed' ? '✗' : '○';
+    const cls    = t.status === 'passed' ? 'pass' : t.status === 'failed' ? 'fail' : 'skip';
+    const dur    = t.duration >= 1000
+      ? `${(t.duration / 1000).toFixed(1)}s`
+      : `${t.duration}ms`;
+
+    return `
+    <div class="test-row ${cls}" data-status="${cls}">
+      <span class="test-icon ${cls}">${icon}</span>
+      <div style="flex:1;min-width:0;">
+        <div class="test-name">${esc(t.test)}</div>
+        <div class="test-file">${esc(t.file)}</div>
+        ${t.error ? `<div class="test-error">${esc(t.error)}</div>` : ''}
+        ${screenshotImg(t.screenshot)}
+      </div>
+      <div class="test-duration">${dur}</div>
+    </div>`;
+  }).join('');
+
   return `
 <h2>Test Results</h2>
 <div class="summary-grid">
-  <div class="stat-box">
-    <div class="num">${r.passed}</div>
-    <div class="lbl">Passed</div>
+  <div class="stat-box" style="border-color:#c8e6c9">
+    <div class="num" style="color:#2e7d32">${r.passed}</div>
+    <div class="lbl">✓ Passed</div>
+  </div>
+  <div class="stat-box" style="border-color:${r.failed > 0 ? '#ffcdd2' : '#e0e0e0'}">
+    <div class="num" style="color:${r.failed > 0 ? '#c62828' : '#999'}">${r.failed}</div>
+    <div class="lbl">✗ Failed</div>
   </div>
   <div class="stat-box">
-    <div class="num">${r.failed}</div>
-    <div class="lbl">Failed</div>
-  </div>
-  <div class="stat-box">
-    <div class="num">${r.skipped}</div>
-    <div class="lbl">Skipped</div>
+    <div class="num" style="color:#9e9e9e">${r.skipped}</div>
+    <div class="lbl">○ Skipped</div>
   </div>
   <div class="stat-box">
     <div class="num">${(r.duration / 1000).toFixed(1)}s</div>
@@ -259,23 +321,23 @@ function buildTestResultsSection(r: NonNullable<ReportInput['testResults']>): st
   </div>
 </div>
 
-${r.failures.length > 0 ? `
-<h3>Failures (${r.failures.length})</h3>
-<table>
-  <thead><tr><th>Test</th><th>Category</th><th>Error / Fix</th></tr></thead>
-  <tbody>
-    ${r.failures.map(f => `
-    <tr>
-      <td>${esc(f.test)}</td>
-      <td><span class="badge badge-fail">${esc(f.category)}</span></td>
-      <td>
-        <div class="error-block">${esc(f.error)}</div>
-        <div class="suggestion">${esc(f.suggestion)}</div>
-        ${screenshotImg(f.screenshot)}
-      </td>
-    </tr>`).join('')}
-  </tbody>
-</table>` : '<p class="empty" style="margin-top:8px;">All tests passed.</p>'}`;
+${rows ? `
+<div class="filter-bar" style="margin-top:16px;">
+  <button class="filter-btn active" onclick="filterTests('all',this)">All ${total}</button>
+  ${r.passed  > 0 ? `<button class="filter-btn" onclick="filterTests('pass',this)" style="color:#2e7d32">✓ Passed ${r.passed}</button>` : ''}
+  ${r.failed  > 0 ? `<button class="filter-btn" onclick="filterTests('fail',this)" style="color:#c62828">✗ Failed ${r.failed}</button>` : ''}
+  ${r.skipped > 0 ? `<button class="filter-btn" onclick="filterTests('skip',this)" style="color:#9e9e9e">○ Skipped ${r.skipped}</button>` : ''}
+</div>
+<div class="test-list" id="test-list">${rows}</div>
+<script>
+function filterTests(status, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.test-row').forEach(row => {
+    row.style.display = (status === 'all' || row.dataset.status === status) ? '' : 'none';
+  });
+}
+</script>` : '<p class="empty" style="margin-top:8px;">No test results available.</p>'}`;
 }
 
 function selectorRow(label: string, count: number, total: number, badge: string): string {

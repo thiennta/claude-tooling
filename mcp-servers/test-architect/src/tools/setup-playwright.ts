@@ -73,6 +73,18 @@ export async function setupPlaywright(
     result.configPath = 'playwright.config.js';
   } else {
     result.configPath = existingConfig;
+    // Patch existing config — thêm screenshot nếu chưa có
+    const existingConfigPath = path.join(projectPath, existingConfig);
+    const configContent = fs.readFileSync(existingConfigPath, 'utf-8');
+    if (!configContent.includes('screenshot')) {
+      const patched = configContent.replace(
+        /use:\s*\{/,
+        `use: {\n    screenshot: 'only-on-failure',`
+      );
+      if (patched !== configContent) {
+        fs.writeFileSync(existingConfigPath, patched, 'utf-8');
+      }
+    }
   }
 
   // Always ensure generated files are in .gitignore (regardless of whether config was created)

@@ -1,17 +1,15 @@
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { TestRunResult } from '../types.js';
+import type { TestRunResult, TestCase } from '../types.js';
 
 export async function runTests(projectPath: string, filter?: string): Promise<TestRunResult> {
   const outputFile = path.join(projectPath, '.test-architect-results.json');
   const filterFlag = filter ? `--grep "${filter}"` : '';
 
-  // Run once with both reporters: json (for parsing) + html (for Playwright report)
-  // json reporter writes to file via env var; html reporter writes to playwright-report/
   try {
     execSync(
-      `npx playwright test ${filterFlag} --reporter=json --reporter=html`.trim(),
+      `npx playwright test ${filterFlag} --reporter=json`.trim(),
       {
         cwd: projectPath,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -31,7 +29,6 @@ export async function runTests(projectPath: string, filter?: string): Promise<Te
     } catch { /* fall through */ }
   }
 
-  // Fallback: run again with only json if above failed
   try {
     const stdout = execSync(
       `npx playwright test ${filterFlag} --reporter=json`.trim(),
@@ -39,40 +36,60 @@ export async function runTests(projectPath: string, filter?: string): Promise<Te
     ).toString();
     return parsePlaywrightJson(JSON.parse(stdout));
   } catch {
-    return { passed: 0, failed: 0, skipped: 0, duration: 0, failures: [] };
+    return { passed: 0, failed: 0, skipped: 0, duration: 0, failures: [], allTests: [] };
   }
 }
 
 function parsePlaywrightJson(raw: any): TestRunResult {
   const failures: TestRunResult['failures'] = [];
+  const allTests: TestCase[] = [];
   const stats = raw.stats || {};
-  collectFailures(raw.suites || [], failures);
+
+  collectTests(raw.suites || [], failures, allTests);
+
   return {
     passed:   stats.expected   || 0,
     failed:   stats.unexpected || 0,
     skipped:  stats.skipped    || 0,
     duration: stats.duration   || 0,
     failures,
+    allTests,
   };
 }
 
-function collectFailures(suites: any[], failures: TestRunResult['failures']): void {
+function collectTests(suites: any[], failures: TestRunResult['failures'], allTests: TestCase[]): void {
   for (const suite of suites) {
-    if (suite.suites) collectFailures(suite.suites, failures);
+    if (suite.suites) collectTests(suite.suites, failures, allTests);
+
     for (const spec of suite.specs || []) {
       for (const test of spec.tests || []) {
-        for (const result of test.results || []) {
-          if (result.status === 'failed' || result.status === 'timedOut') {
-            const screenshotAttachment = (result.attachments || []).find(
-              (a: any) => a.name === 'screenshot' && a.path
-            );
-            failures.push({
-              test:       spec.title,
-              error:      result.error?.message || result.error?.value || 'Unknown error',
-              file:       suite.file || '',
-              screenshot: screenshotAttachment?.path,
-            });
-          }
+        const result = (test.results || [])[0];
+        if (!result) continue;
+
+        const isFailed   = result.status === 'failed' || result.status === 'timedOut';
+        const isSkipped  = result.status === 'skipped';
+        const screenshot = (result.attachments || []).find(
+          (a: any) => a.name === 'screenshot' && a.path
+        )?.path;
+
+        const status: TestCase['status'] = isFailed ? 'failed' : isSkipped ? 'skipped' : 'passed';
+
+        allTests.push({
+          test:       spec.title,
+          file:       suite.file || '',
+          status,
+          duration:   result.duration || 0,
+          screenshot,
+          error:      isFailed ? (result.error?.message || result.error?.value || 'Unknown error') : undefined,
+        });
+
+        if (isFailed) {
+          failures.push({
+            test:       spec.title,
+            error:      result.error?.message || result.error?.value || 'Unknown error',
+            file:       suite.file || '',
+            screenshot,
+          });
         }
       }
     }

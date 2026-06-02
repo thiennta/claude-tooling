@@ -8,11 +8,14 @@
     "clean": "node --eval \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "npm run clean && tsc",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "auth": "tsx src/auth-setup.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "fast-glob": "^3.3.2",
+    "googleapis": "^173.0.0",
+    "open": "^11.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

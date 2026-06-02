@@ -10,6 +10,8 @@ Parse các flag sau:
 - `--spec <path>` — đường dẫn tới spec file hoặc thư mục
 - `--run` — sau khi sinh test, chạy luôn và báo kết quả
 - `--coverage` — chỉ hiện gap analysis, không sinh test file
+- `--sheet-spec <url>` — đọc spec từ Google Sheet thay vì markdown file
+- `--sheet-report <url>` — ghi test scenarios ra Google Sheet để tester review trước khi chạy
 
 Nếu có `--project <path>`, dùng path đó làm `projectPath`. Nếu không, dùng `cwd`.
 
@@ -24,7 +26,13 @@ Xác định `projectPath`: dùng `--project <path>` nếu có, nếu không dù
 **Wave 1 — chạy song song (không có dependency):**
 
 1. Gọi tool `detect_ui_framework` với `projectPath`
-2. Gọi tool `scan_specs` với `projectPath` + `specPath` (nếu có `--spec`) + `moduleFilter` (nếu có `--module`)
+2. Nếu có `--sheet-spec`:
+   - Gọi tool `read_sheet_spec` với `sheetUrl` + `sheetName` (nếu có)
+   - Claude tự đọc hiểu raw rows, extract scenarios — không yêu cầu format cố định
+   - Bỏ qua `scan_specs` và `parse_markdown_spec`
+   
+   Nếu không có `--sheet-spec`:
+   - Gọi tool `scan_specs` với `projectPath` + `specPath` (nếu có `--spec`) + `moduleFilter` (nếu có `--module`)
 
 **Wave 2 — chờ Wave 1 xong, sau đó chạy song song (cần `framework` từ `detect_ui_framework`):**
 
@@ -117,6 +125,7 @@ Form: <component>
 ════════════════════════════════════════════
 
 Requirements đúng chưa? Có bổ sung gì không?
+<Nếu đọc từ --sheet-spec:> Tôi đọc từ Sheet và hiểu spec như trên — đúng không?
 <Nếu có conflict:> Chọn chiến lược resolve (1/2/3/4, mặc định = 1):
 (Enter để tiếp tục / gõ để chỉnh sửa)
 ```
@@ -256,6 +265,47 @@ test.describe('<feature>', () => {
 
 ---
 
+## STEP 3b — Ghi scenarios ra Google Sheet (chỉ khi có `--sheet-report`)
+
+Gọi tool `write_sheet_report` với:
+- `sheetUrl`: URL từ `--sheet-report`
+- `module`: tên module
+- `date`: ngày hôm nay (YYYY-MM-DD)
+- `scenarios`: danh sách test cases vừa sinh (testName, type, expected)
+
+> ⚠ **TUYỆT ĐỐI không dùng WebFetch, fetch(), hay HTTP request để ghi vào Google Sheets.**
+> Luôn dùng tool `write_sheet_report`. Nếu tool fail → hiển thị error message và dừng, không tự fallback.
+
+Sau khi ghi xong, hiển thị và **dừng lại** chờ tester review:
+
+```
+════════════════════════════════════════════
+  Kịch bản test đã ghi ra Google Sheet
+════════════════════════════════════════════
+
+Tab:  <module>_<date>
+Link: <url trực tiếp đến tab>
+
+Tester mở link để review:
+  - Xóa row không muốn chạy
+  - Sửa nội dung test nếu cần (Expected, Test Name)
+  - Ghi chú vào cột Notes nếu muốn (Claude không đọc cột này)
+
+Nhấn Enter khi đã review xong để tiếp tục...
+════════════════════════════════════════════
+```
+
+**Dừng tại đây, đợi user nhấn Enter.**
+
+Sau khi user Enter → gọi tool `read_back_sheet` với `sheetUrl` + `sheetName` để lấy scenarios sau review:
+- Row bị xóa → đánh dấu `test.skip()` trong file test
+- Row bị sửa nội dung → update assertion tương ứng trong file test
+- Row còn nguyên → giữ nguyên
+
+Nếu **không có `--sheet-report`** → bỏ qua bước này, chuyển sang CHECKPOINT 3 như bình thường.
+
+---
+
 ## STEP 4 — Report
 
 Sau khi tạo xong file, gọi tool `generate_report` với `projectPath` và toàn bộ dữ liệu tổng hợp từ các bước trên (requirements, selectors, gaps, generatedFile). Nếu có flag `--run` và đã chạy test, truyền thêm `testResults`.
@@ -298,7 +348,9 @@ Run: npx playwright test --grep "<module>"
 
 ---
 
-## CHECKPOINT 3 — Review test cases trước khi chạy (chỉ khi có flag `--run`)
+## CHECKPOINT 3 — Review test cases trước khi chạy (chỉ khi có `--run` VÀ không có `--sheet-report`)
+
+Nếu có `--sheet-report`: bỏ qua CHECKPOINT 3 — tester đã review trên Sheet ở STEP 3b.
 
 Hiển thị toàn bộ test cases vừa sinh ra theo dạng tóm tắt, sau đó **dừng lại** và hỏi user:
 
@@ -361,11 +413,14 @@ Gọi tool `run_tests` với `projectPath` và `filter` = tên module.
 
 Gọi tool `classify_results` với danh sách failures.
 
-Gọi tool `generate_report` với `projectPath`, toàn bộ dữ liệu từ các bước trước, và `testResults` (passed, failed, skipped, duration, failures đã classify). HTML report lần này sẽ có đầy đủ kết quả test.
+Gọi tool `generate_report` với `projectPath`, toàn bộ dữ liệu từ các bước trước, và `testResults` bao gồm:
+- `passed`, `failed`, `skipped`, `duration`
+- `failures`: danh sách failures đã classify (có `category`, `suggestion`)
+- `allTests`: **toàn bộ** danh sách test cases từ kết quả `run_tests` (bao gồm cả passed, failed, skipped — field `allTests` trong `TestRunResult`). Đây là bắt buộc để report hiển thị đầy đủ test list kèm evidence.
 
 **`generate_report` phải luôn được gọi và phải luôn trả về `filePath` HTML — bắt buộc, dù test pass hay fail.**
 
-> ℹ Tool `run_tests` đã chạy với `--reporter=json --reporter=html` nên Playwright HTML report (`playwright-report/index.html`) được sinh tự động. Nếu vì lý do nào đó chưa có, chạy một lần duy nhất: `npx playwright show-report` hoặc `npx playwright test --reporter=html` để tạo lại — sau đó dừng.
+> ℹ Kết quả test được tổng hợp vào Test Architect HTML report qua `generate_report`. Đây là report duy nhất cần thiết.
 
 Hiển thị:
 
@@ -399,8 +454,6 @@ Hiển thị:
 - Không chạy lại test để "fix" lỗi
 - Không hỏi user có muốn fix không
 - Không đề xuất thêm bất kỳ bước nào
-
-Ngoại lệ duy nhất được phép: nếu `playwright-report/index.html` chưa tồn tại thì chạy một lần `npx playwright test <filter> --reporter=html` để sinh report, sau đó dừng ngay.
 
 Nếu user muốn sửa hoặc chạy lại, họ sẽ chủ động yêu cầu.
 

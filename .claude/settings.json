@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"d:\\\\Source\\\\claude-tooling\\\\mcp-servers\\\\test-architect\\\\dist\\\\utils\")",
+      "Bash(dir \"d:\\\\Source\\\\claude-tooling\\\\mcp-servers\\\\test-architect\\\\dist\\\\tools\" /b)",
+      "Bash(findstr sheet *)",
+      "Read(//c/Users/DevNta_stt/.claude/mcp-servers/test-architect/src/tools/**)",
+      "Read(//c/Users/DevNta_stt/.claude/mcp-servers/test-architect/dist/tools/**)",
+      "Read(//c/Users/DevNta_stt/.claude/**)",
+      "Bash(npm run *)",
+      "Bash(node setup.js)",
+      "Bash(node \"C:\\\\Users\\\\DevNta_stt\\\\.claude\\\\mcp-servers\\\\test-architect\\\\dist\\\\index.js\")",
+      "Bash(kill %1)",
+      "Read(//d/Source/Demo/post-CRUD/**)",
+      "Read(//c/Users/DevNta_stt/.vscode/**)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\DevNta_stt\\\\AppData\\\\Roaming\" -Filter \"settings.json\" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -match -join\\(\"claude\",\"anthropic\"\\) } | Select-Object FullName)",
+      "Read(//c/Users/DevNta_stt/AppData/**)",
+      "Read(//d/Source/Demo/**)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\DevNta_stt\\\\AppData\\\\Local\\\\claude-cli-nodejs\\\\Cache\\\\d--Source-Demo-post-CRUD\" -Recurse | Where-Object { $_.Name -match \"test-architect\" } | Select-Object FullName)",
+      "Bash(claude mcp *)",
+      "Read(//c/Users/DevNta_stt/**)",
+      "PowerShell(Get-Content \"C:\\\\Users\\\\DevNta_stt\\\\.claude.json\" | ConvertFrom-Json -AsHashtable | ForEach-Object { $_.mcpServers } | ConvertTo-Json)"
+    ],
+    "additionalDirectories": [
+      "D:\\Source\\Demo\\post-CRUD"
+    ]
+  }
+}
