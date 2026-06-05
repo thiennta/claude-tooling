@@ -126,6 +126,44 @@ Gọi `gap_analysis` với:
 
 ---
 
+## STEP 3b — Ghi scenarios ra Google Sheet (chỉ khi có `--sheet-report`)
+
+> ⚠ Bước này chạy **TRƯỚC** STEP 3 (sinh code) — tester review kịch bản trước, sinh code sau.
+
+Gọi tool `write_sheet_report` với:
+- `sheetUrl`: URL từ `--sheet-report`
+- `module`: tên module
+- `date`: ngày hôm nay (YYYY-MM-DD)
+- `scenarios`: danh sách scenarios từ **gap_analysis** (chưa sinh code — chỉ gồm testName, type, expected)
+
+> ⚠ **TUYỆT ĐỐI không dùng WebFetch, fetch(), hay HTTP request để ghi vào Google Sheets.**
+> Luôn dùng tool `write_sheet_report`. Nếu tool fail → hiển thị error message và dừng, không tự fallback.
+
+Hiển thị và **dừng lại** chờ tester review:
+
+```
+════════════════════════════════════════════
+  Kịch bản test đã ghi ra Google Sheet
+════════════════════════════════════════════
+
+Tab:  <module>_<date>
+Link: <url trực tiếp đến tab>
+
+Tester mở link để review:
+  - Xóa row không muốn chạy
+  - Sửa nội dung test nếu cần (Expected, Test Name)
+  - Ghi chú vào cột Notes nếu muốn (Claude không đọc cột này)
+
+Nhấn Enter khi đã review xong để tiếp tục...
+════════════════════════════════════════════
+```
+
+**Dừng tại đây, đợi user nhấn Enter.**
+
+Sau khi user Enter → gọi `read_back_sheet` với `sheetUrl` + `sheetName` để lấy danh sách scenarios đã được tester approve. Dùng danh sách này làm input cho STEP 3.
+
+---
+
 ## CHECKPOINT 2 — Conflict check file test
 
 Kiểm tra file test sẽ tạo:
@@ -136,6 +174,10 @@ Nếu đã tồn tại → hiển thị prompt Overwrite / Merge / Rename / Abor
 ---
 
 ## STEP 3 — Sinh test files
+
+**Input scenarios:**
+- Nếu có `--sheet-report`: dùng danh sách scenarios đã approve từ `read_back_sheet` (STEP 3b)
+- Nếu không có `--sheet-report`: dùng toàn bộ scenarios từ gap_analysis
 
 Tạo file `e2e/api/<module>.api.spec.ts` theo cấu trúc:
 
@@ -292,40 +334,6 @@ Run: npx playwright test e2e/api/<module>.api.spec.ts
 ════════════════════════════════════════════
 ```
 
----
-
-## STEP 3b — Ghi scenarios ra Google Sheet (chỉ khi có `--sheet-report`)
-
-Gọi tool `write_sheet_report` với `sheetUrl`, `module`, `date`, `scenarios`.
-
-> ⚠ **TUYỆT ĐỐI không dùng WebFetch, fetch(), hay HTTP request để ghi vào Google Sheets.**
-> Luôn dùng tool `write_sheet_report`. Nếu tool fail → hiển thị error message và dừng, không tự fallback.
-
-Hiển thị và **dừng lại** chờ tester review:
-
-```
-════════════════════════════════════════════
-  Kịch bản test đã ghi ra Google Sheet
-════════════════════════════════════════════
-
-Tab:  <module>_<date>
-Link: <url trực tiếp đến tab>
-
-Tester mở link để review:
-  - Xóa row không muốn chạy
-  - Sửa nội dung test nếu cần (Expected, Test Name)
-  - Ghi chú vào cột Notes nếu muốn (Claude không đọc cột này)
-
-Nhấn Enter khi đã review xong để tiếp tục...
-════════════════════════════════════════════
-```
-
-**Dừng tại đây, đợi user nhấn Enter.**
-
-Sau khi user Enter → gọi `read_back_sheet` → sync lại test file:
-- Row bị xóa → `test.skip()`
-- Row bị sửa → update assertion
-- Row còn nguyên → giữ nguyên
 
 ---
 
@@ -383,7 +391,9 @@ Gọi `classify_results` rồi `generate_report` với `testResults` bao gồm:
 
 ## Giữ focus trong suốt session
 
-**Tuân thủ thứ tự step:** STEP 1 → CP1 → STEP 2 → CP2 → STEP 3 → STEP 4 → STEP 5.
+**Tuân thủ thứ tự step:**
+- Không có `--sheet-report`: STEP 1 → CP1 → STEP 2 → CP2 → STEP 3 → STEP 4 → CP3 → STEP 5
+- Có `--sheet-report`: STEP 1 → CP1 → STEP 2 → **STEP 3b** (ghi sheet, chờ review) → CP2 → **STEP 3** (sinh code từ scenarios đã duyệt) → STEP 4 → STEP 5
 
 **State anchor:** Bắt đầu mỗi response bằng:
 ```
