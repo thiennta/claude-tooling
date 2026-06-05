@@ -196,6 +196,11 @@ Nhấn Enter khi đã review xong để tiếp tục...
 
 Sau khi user Enter → gọi tool `read_back_sheet` với `sheetUrl` + `sheetName` để lấy danh sách scenarios đã được tester approve. Dùng danh sách này làm input cho STEP 3.
 
+> **Quy tắc bắt buộc khi đọc lại sheet:**
+> - Nội dung sheet sau review là **source of truth tuyệt đối**
+> - Nếu tester sửa `expected` → dùng đúng giá trị tester đã ghi, không được override hay "điều chỉnh cho đúng với code".
+> - Nếu tester xóa row → bỏ scenario đó hoàn toàn, không sinh test cho nó.
+
 ---
 
 ## CHECKPOINT 2 — Conflict check
