@@ -136,6 +136,8 @@ Gọi tool `write_sheet_report` với:
 - `date`: ngày hôm nay (YYYY-MM-DD)
 - `scenarios`: danh sách scenarios từ **gap_analysis** (chưa sinh code — chỉ gồm testName, type, expected)
 
+> **Ngôn ngữ nội dung:** `testName` và `expected` phải viết **bằng tiếng Việt**. Trường `type` giữ nguyên giá trị enum tiếng Anh (`happy_path`, `error_case`, `validation`, `missing`).
+
 > ⚠ **TUYỆT ĐỐI không dùng WebFetch, fetch(), hay HTTP request để ghi vào Google Sheets.**
 > Luôn dùng tool `write_sheet_report`. Nếu tool fail → hiển thị error message và dừng, không tự fallback.
 
