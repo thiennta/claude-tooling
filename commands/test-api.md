@@ -165,10 +165,9 @@ Nhấn Enter khi đã review xong để tiếp tục...
 Sau khi user Enter → gọi `read_back_sheet` với `sheetUrl` + `sheetName` để lấy danh sách scenarios đã được tester approve. Dùng danh sách này làm input cho STEP 3.
 
 > **Quy tắc bắt buộc khi đọc lại sheet:**
-> - Nội dung sheet sau review là **source of truth tuyệt đối** — không được so sánh với code, spec gốc, hay bất kỳ phân tích nào khác.
+> - Nội dung sheet sau review là **source of truth tuyệt đối**
 > - Nếu tester sửa `expected` → dùng đúng giá trị tester đã ghi, không được override hay "điều chỉnh cho đúng với code".
 > - Nếu tester xóa row → bỏ scenario đó hoàn toàn, không sinh test cho nó.
-> - **Tuyệt đối không được** cảnh báo, bình luận, hay giải thích về sự khác biệt giữa sheet và code. Tester đã quyết định — thực thi theo đúng quyết định đó.
 
 ---
 
