@@ -17,6 +17,7 @@ import { setupPlaywright } from './tools/setup-playwright.js';
 import { generateReport } from './tools/generate-report.js';
 import { readSheetSpec }  from './tools/read-sheet-spec.js';
 import { writeSheetReport, readBackSheet } from './tools/write-sheet-report.js';
+import { readFigmaSpec } from './tools/read-figma-spec.js';
 
 const server = new McpServer({
   name: 'test-architect',
@@ -281,6 +282,22 @@ server.tool(
   },
   async ({ projectPath, framework, moduleFilter }) => {
     const result = await scanApiFlows(projectPath, framework, moduleFilter);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ─── Figma tools ─────────────────────────────────────────────────────────────
+
+server.tool(
+  'read_figma_spec',
+  'Đọc Figma file qua REST API và trả về danh sách screens/frames với text content. Dùng thay thế cho parse_markdown_spec khi spec đến từ Figma.',
+  {
+    figmaUrl: z.string().describe('Figma file URL (figma.com/design/...) hoặc bare file key'),
+    nodeId: z.string().optional().describe('Node ID cụ thể để chỉ đọc 1 frame/component (lấy từ URL sau ?node-id=)'),
+    figmaToken: z.string().optional().describe('Figma Personal Access Token — bỏ qua nếu đã setup qua setup.js'),
+  },
+  async ({ figmaUrl, nodeId, figmaToken }) => {
+    const result = await readFigmaSpec(figmaUrl, nodeId, figmaToken);
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   }
 );

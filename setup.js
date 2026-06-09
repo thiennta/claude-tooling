@@ -87,8 +87,23 @@ if (existsSync(clientSecretSrc)) {
   console.log('  2. Chạy lại: node setup.js')
 }
 
-// 7. Register MCP via Claude Code CLI (ghi vào ~/.claude.json đúng cách)
-console.log('[5/5] Registering MCP server...')
+// 7. Configure Figma Personal Access Token (optional)
+const figmaSecretSrc  = resolve(__dirname, 'figma_secret.json')
+const figmaTokenPath  = resolve(claudeDir, 'figma-token.json')
+
+if (existsSync(figmaSecretSrc)) {
+  console.log('[5/6] Configuring Figma token...')
+  cpSync(figmaSecretSrc, figmaTokenPath, { force: true })
+  console.log('  ✓ figma_secret.json copied to ~/.claude/figma-token.json')
+} else {
+  console.log('[5/6] Figma token — bỏ qua (figma_secret.json không tìm thấy)')
+  console.log('  Để dùng --figma-spec:')
+  console.log('  1. Tạo figma_secret.json với nội dung: { "token": "figd__xxx..." }')
+  console.log('  2. Chạy lại: node setup.js')
+}
+
+// 8. Register MCP via Claude Code CLI (ghi vào ~/.claude.json đúng cách)
+console.log('[6/6] Registering MCP server...')
 try {
   execSync(
     `claude mcp add test-architect node "${resolve(mcpDest, 'dist', 'index.js')}" --scope user`,

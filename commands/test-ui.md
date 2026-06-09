@@ -12,6 +12,7 @@ Parse các flag sau:
 - `--coverage` — chỉ hiện gap analysis, không sinh test file
 - `--sheet-spec <url>` — đọc spec từ Google Sheet thay vì markdown file
 - `--sheet-report <url>` — ghi test scenarios ra Google Sheet để tester review trước khi chạy
+- `--figma-spec <url>` — đọc spec từ Figma file thay vì markdown file (URL dạng figma.com/design/...)
 
 Nếu có `--project <path>`, dùng path đó làm `projectPath`. Nếu không, dùng `cwd`.
 
@@ -26,12 +27,17 @@ Xác định `projectPath`: dùng `--project <path>` nếu có, nếu không dù
 **Wave 1 — chạy song song (không có dependency):**
 
 1. Gọi tool `detect_ui_framework` với `projectPath`
-2. Nếu có `--sheet-spec`:
+2. Nếu có `--figma-spec`:
+   - Gọi tool `read_figma_spec` với `figmaUrl` (URL từ `--figma-spec`) + `nodeId` nếu URL có `?node-id=`
+   - Từ kết quả `FigmaSpecResult`, tạo `ParsedSpec` giả: mỗi screen → 1 feature, mỗi textContent item → 1 scenario `happy_path`
+   - Bỏ qua `scan_specs` và `parse_markdown_spec`
+
+   Nếu có `--sheet-spec`:
    - Gọi tool `read_sheet_spec` với `sheetUrl` + `sheetName` (nếu có)
    - Claude tự đọc hiểu raw rows, extract scenarios — không yêu cầu format cố định
    - Bỏ qua `scan_specs` và `parse_markdown_spec`
    
-   Nếu không có `--sheet-spec`:
+   Nếu không có `--figma-spec` và không có `--sheet-spec`:
    - Gọi tool `scan_specs` với `projectPath` + `specPath` (nếu có `--spec`) + `moduleFilter` (nếu có `--module`)
 
 **Wave 2 — chờ Wave 1 xong, sau đó chạy song song (cần `framework` từ `detect_ui_framework`):**
@@ -125,6 +131,7 @@ Form: <component>
 ════════════════════════════════════════════
 
 Requirements đúng chưa? Có bổ sung gì không?
+<Nếu đọc từ --figma-spec:> Tôi đọc từ Figma và hiểu spec như trên — đúng không?
 <Nếu đọc từ --sheet-spec:> Tôi đọc từ Sheet và hiểu spec như trên — đúng không?
 <Nếu có conflict:> Chọn chiến lược resolve (1/2/3/4, mặc định = 1):
 (Enter để tiếp tục / gõ để chỉnh sửa)
@@ -224,7 +231,9 @@ Nếu file **đã tồn tại**, hiển thị interactive prompt:
 - Nếu có `--sheet-report`: dùng danh sách scenarios đã approve từ `read_back_sheet` (STEP 3b)
 - Nếu không có `--sheet-report`: dùng toàn bộ scenarios từ gap_analysis
 
-Dựa trên scenarios đã xác định và lựa chọn conflict của user, sinh Playwright test files.
+> ⚠ **TUYỆT ĐỐI không tự thêm, bớt, hoặc sửa scenario dựa trên code.** Spec (Figma / Sheet / markdown) là nguồn sự thật duy nhất. Nếu user sửa kịch bản trên Sheet → sinh test theo kịch bản đã sửa, bất kể code có gợi ý gì khác. Code chỉ dùng để lấy selectors — không dùng để quyết định test case nào tồn tại.
+
+Sinh Playwright test files **chỉ từ danh sách scenarios input ở trên**, không thêm bất kỳ case nào ngoài danh sách đó.
 
 **Quy tắc sinh test:**
 
