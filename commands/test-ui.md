@@ -45,6 +45,18 @@ Xác định `projectPath`: dùng `--project <path>` nếu có, nếu không dù
 3. Gọi tool `scan_ui_flows` với `projectPath` + `framework` + `moduleFilter`
 4. Gọi tool `scan_ui_validation` với `projectPath` + `framework` + `moduleFilter`
 
+**Wave 3 — chỉ khi có `--figma-spec`, chờ Wave 1 + Wave 2 xong:**
+
+5. So sánh **Figma vs Code** bằng cách đối chiếu thủ công (không cần tool mới):
+   - Lấy toàn bộ `textContent` từ `FigmaSpecResult` (labels, button text, placeholder, error messages, headings)
+   - So sánh với text thực tế tìm được trong `scan_ui_flows` + `scan_ui_validation` (selector text, component props, hardcoded strings trong code)
+   - Phân loại từng mismatch:
+     - `text_mismatch` — text trong Figma khác text trong code (ví dụ: Figma "Submit" vs code "Confirm")
+     - `missing_in_code` — element/screen có trong Figma nhưng không tìm thấy trong code
+     - `extra_in_code` — element/screen có trong code nhưng không có trong Figma
+     - `flow_mismatch` — redirect/navigation trong Figma khác với route trong code
+   - Lưu kết quả vào `figmaCodeDiffs` để hiển thị ở CHECKPOINT 1
+
 **Sau khi có kết quả `detect_ui_framework`:**
 
 Luôn gọi tool `setup_playwright` với `projectPath` và `baseURL` từ `detect_ui_framework`. Tool tự detect và bỏ qua những gì đã có:
@@ -104,6 +116,21 @@ Form: <component>
   - User account (email + password) để đăng nhập
   - <list thêm dựa trên flows tìm được, ví dụ: sản phẩm active, thẻ test, URL môi trường>
   - Base URL: <baseURL từ detect_ui_framework>
+
+── Figma vs Code mismatches ───────────────
+<Chỉ hiển thị khi có --figma-spec. Nếu không có --figma-spec → bỏ qua section này.>
+
+<Nếu KHÔNG có mismatch:>
+  ✓ Figma và code khớp nhau
+
+<Nếu CÓ mismatch — hiển thị từng mục:>
+  ⚠ MISMATCHES (<N> mục) — Figma là source of truth, các mục sau sẽ được sinh test tự động:
+    [text_mismatch]    "<screen/component>" — Figma: "<text figma>" → Code: "<text code>"
+    [missing_in_code]  "<screen/element>" có trong Figma nhưng không tìm thấy trong code
+    [extra_in_code]    "<screen/element>" có trong code nhưng không có trong Figma
+    [flow_mismatch]    "<action>" — Figma redirect: "<url figma>" → Code redirect: "<url code>"
+
+  → Danh sách này chỉ để báo cáo. Tester xác nhận lại với developer trước khi fix.
 
 ── Spec conflicts ─────────────────────────
 <Nếu KHÔNG có conflict:>
@@ -233,6 +260,8 @@ Nếu file **đã tồn tại**, hiển thị interactive prompt:
 
 > ⚠ **TUYỆT ĐỐI không tự thêm, bớt, hoặc sửa scenario dựa trên code.** Spec (Figma / Sheet / markdown) là nguồn sự thật duy nhất. Nếu user sửa kịch bản trên Sheet → sinh test theo kịch bản đã sửa, bất kể code có gợi ý gì khác. Code chỉ dùng để lấy selectors — không dùng để quyết định test case nào tồn tại.
 
+> ⚠ **`scenario.expected` từ sheet là assertion bắt buộc — không được thay bằng assertion khác.** Dùng text đó trực tiếp trong `toContainText(...)` hoặc `toHaveURL(...)`. Nếu `expected` có vẻ sai về mặt kỹ thuật (ví dụ: tên test gợi ý error nhưng expected lại là redirect thành công) → vẫn sinh test theo đúng `expected` đó — test fail là tín hiệu hợp lệ từ tester, không phải lỗi của tool. **Tuyệt đối không dùng tên scenario hay hiểu biết về behavior để suy luận assertion thay cho `expected`.**
+
 Sinh Playwright test files **chỉ từ danh sách scenarios input ở trên**, không thêm bất kỳ case nào ngoài danh sách đó.
 
 **Quy tắc sinh test:**
@@ -345,6 +374,13 @@ Tests generated: <N>
 
 Nên thêm data-testid vào:
   └─ <component> → <list fields>
+
+── Figma vs Code mismatches ───────────────
+<Chỉ hiển thị khi có --figma-spec và có figmaCodeDiffs. Nếu không → bỏ qua.>
+  ⚠ <N> mismatch cần tester xác nhận lại với developer:
+    [text_mismatch]   "<component>" — Figma: "<text>" → Code: "<text>"
+    [missing_in_code] "<element>" có trong Figma nhưng chưa có trong code
+    [flow_mismatch]   "<action>" — Figma: "<url>" → Code: "<url>"
 
 ── Generated file ─────────────────────────
   tests/feature/<module>.spec.ts
