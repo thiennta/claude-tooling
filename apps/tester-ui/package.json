@@ -1,0 +1,22 @@
+{
+  "name": "ai-test-runner-ui",
+  "version": "0.1.0",
+  "description": "Desktop UI for testers to run AI Test Architect (test-ui/test-api) with full interactive checkpoints inside an embedded real terminal",
+  "main": "main.js",
+  "type": "commonjs",
+  "author": "NitroTech Asia",
+  "scripts": {
+    "start": "electron .",
+    "postinstall": "node scripts/postinstall.js",
+    "dist": "electron-packager . \"AI Test Runner\" --platform=win32 --arch=x64 --out=dist --overwrite --asar=false --prune=false --app-version=0.1.0"
+  },
+  "dependencies": {
+    "@homebridge/node-pty-prebuilt-multiarch": "0.14.1-beta.2",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0"
+  },
+  "devDependencies": {
+    "@electron/packager": "^18.3.6",
+    "electron": "29.4.6"
+  }
+}

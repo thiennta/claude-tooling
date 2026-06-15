@@ -127,9 +127,57 @@ try {
   writeFileSync(claudeJsonPath, JSON.stringify(claudeJson, null, 2), 'utf-8')
 }
 
+// 9. Build the Test Runner desktop UI (.exe) on THIS machine (Node already verified)
+const uiSrc  = resolve(__dirname, 'apps', 'tester-ui')
+const exeDir = resolve(uiSrc, 'dist', 'AI Test Runner-win32-x64')
+const exePath = resolve(exeDir, 'AI Test Runner.exe')
+let uiBuilt = false
+
+// Create/refresh the Desktop shortcut (cheap — always safe to re-run).
+function ensureShortcut() {
+  if (process.platform !== 'win32') return
+  const desktop = resolve(homeDir, 'Desktop', 'AI Test Runner.lnk')
+  const psCmd = `$s=(New-Object -ComObject WScript.Shell).CreateShortcut('${desktop}'); $s.TargetPath='${exePath}'; $s.WorkingDirectory='${exeDir}'; $s.Save()`
+  try {
+    execSync(`powershell -NoProfile -Command "${psCmd}"`, { stdio: 'ignore' })
+    console.log(`  ✓ Desktop shortcut: ${desktop}`)
+  } catch {
+    console.log('  ⚠ Could not create Desktop shortcut (run the .exe directly).')
+  }
+}
+
+if (!existsSync(uiSrc)) {
+  console.log('[+] Test Runner UI — bỏ qua (apps/tester-ui không tìm thấy)')
+} else if (existsSync(exePath)) {
+  // Already built — skip the heavy rebuild, just make sure the shortcut is there.
+  uiBuilt = true
+  console.log('[+] Test Runner UI — đã có .exe, bỏ qua build (xóa dist để build lại).')
+  ensureShortcut()
+} else {
+  console.log('[+] Building Test Runner UI (.exe)...')
+  try {
+    // npm install runs the app's postinstall (fetches node-pty prebuilt for Electron),
+    // then electron-packager produces a self-contained folder with the .exe.
+    execSync('npm install', { cwd: uiSrc, stdio: 'inherit', shell: true })
+    execSync('npm run dist', { cwd: uiSrc, stdio: 'inherit', shell: true })
+
+    if (existsSync(exePath)) {
+      uiBuilt = true
+      console.log(`  ✓ Built: ${exePath}`)
+      ensureShortcut()
+    } else {
+      console.log('  ⚠ Build finished but .exe not found — check output above.')
+    }
+  } catch {
+    console.error('  ⚠ UI build failed. Build manually later:')
+    console.error(`     cd "${uiSrc}" && npm install && npm run dist`)
+  }
+}
+
 console.log('\n✓ Done! Restart Claude Code to apply changes.')
 const hasSheets = existsSync(clientSecretDest)
 if (hasSheets) console.log('  Sheets    → OAuth configured ✓')
 console.log(`  Commands  → ${resolve(claudeDir, 'commands')}`)
 console.log(`  MCP       → ${mcpDest}`)
 console.log(`  Config    → ${resolve(homeDir, '.claude.json')}`)
+if (uiBuilt) console.log(`  UI (.exe) → ${exePath}`)
