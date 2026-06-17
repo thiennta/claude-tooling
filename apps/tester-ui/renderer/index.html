@@ -45,7 +45,8 @@
       font-size: 13px; font-weight: 600; cursor: pointer;
     }
     .btn-run { background: var(--accent); color: #1e1e2e; }
-    .btn-run:hover { filter: brightness(1.08); }
+    .btn-run:hover:not(:disabled) { filter: brightness(1.08); }
+    .btn-run:disabled { opacity: 0.55; cursor: not-allowed; }
     .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
     .btn-ghost:hover { color: var(--text); }
     .preview {
@@ -79,10 +80,10 @@
     <div class="field">
       <label for="source">Spec từ</label>
       <select id="source">
+        <option value="none">Không có spec (theo code)</option>
         <option value="figma">Figma link</option>
         <option value="sheet">Google Sheet link</option>
         <option value="markdown">Markdown spec (file/thư mục)</option>
-        <option value="none">Không có spec (theo code)</option>
       </select>
     </div>
 

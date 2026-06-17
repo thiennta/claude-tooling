@@ -99,10 +99,19 @@ function refreshPreview() {
   .forEach((id) => $(id).addEventListener('input', refreshPreview));
 $('source').addEventListener('change', updateLinkVisibility);
 
+function setRunning(running) {
+  const btn = document.querySelector('.btn-run');
+  btn.disabled = running;
+  btn.textContent = running ? '⏳ Running...' : '▶ Run';
+}
+
+window.api.onSessionEnd(() => setRunning(false));
+
 $('form').addEventListener('submit', (e) => {
   e.preventDefault();
   const cwd = $('project').value.trim();
   const command = buildShellCommand(buildSlashCommand());
+  setRunning(true);
   term.focus();
   window.api.run(cwd, command);
 });

@@ -53,6 +53,7 @@ function spawnPty(cwd) {
   ptyProc.onExit(({ exitCode }) => {
     if (win && !win.isDestroyed()) {
       win.webContents.send('pty:data', `\r\n\x1b[90m[session ended — exit ${exitCode}]\x1b[0m\r\n`);
+      win.webContents.send('pty:exit');
     }
     ptyProc = null;
   });
@@ -104,7 +105,7 @@ ipcMain.on('session:run', (_e, { cwd, command }) => {
   spawnPty(cwd);
   // Give the shell a beat to initialize before sending the command.
   setTimeout(() => {
-    if (ptyProc) ptyProc.write(command + '\r');
+    if (ptyProc) ptyProc.write(command + '; exit\r');
   }, 400);
 });
 

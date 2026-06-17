@@ -19,4 +19,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Open native folder picker; resolves to selected path or null
   pickFolder: (current) => ipcRenderer.invoke('dialog:pickFolder', current),
+
+  // Notify renderer when PTY session ends
+  onSessionEnd: (cb) => ipcRenderer.on('pty:exit', (_e) => cb()),
 });
