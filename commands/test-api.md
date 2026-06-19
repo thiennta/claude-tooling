@@ -374,6 +374,14 @@ Gọi `classify_results` rồi `generate_report` với `testResults` bao gồm:
 - `failures`: danh sách failures đã classify
 - `allTests`: **toàn bộ** danh sách test cases từ `run_tests` (field `allTests` trong `TestRunResult`) — bắt buộc để report hiển thị đầy đủ test list kèm evidence.
 
+**5d. Ghi kết quả ngược ra Google Sheet (chỉ khi có `--sheet-report`):**
+
+Nếu có `--sheet-report`, gọi lại tool `write_sheet_report` để điền cột **Result** vào tab đã tạo ở STEP 3b:
+- `sheetUrl` + `module` + `date`: **giống hệt** STEP 3b (trỏ đúng tab `<module>_<date>`)
+- `scenarios`: danh sách đã approve (từ `read_back_sheet`), giữ nguyên các field cũ và thêm `result` cho mỗi cái — `✅ PASS` / `❌ FAIL` / `⊘ SKIP` map từ `status` trong `allTests`, match theo `testName`. Test FAIL nối thêm category từ `classify_results` (vd `❌ FAIL — real_bug`).
+
+> ⚠ Match theo đúng `testName` trên Sheet. Luôn dùng tool `write_sheet_report` — KHÔNG dùng WebFetch/HTTP.
+
 **Sau khi hiển thị xong → DỪNG HOÀN TOÀN.** Không tự sửa, không chạy lại.
 
 ---

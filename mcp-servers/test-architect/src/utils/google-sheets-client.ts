@@ -62,19 +62,17 @@ export async function writeSheet(
   const auth   = await getAuthClient();
   const sheets = google.sheets({ version: 'v4', auth });
 
-  // Tạo tab mới nếu chưa có
-  const meta       = await sheets.spreadsheets.get({ spreadsheetId });
-  const existingTab = meta.data.sheets?.find(
-    s => s.properties?.title === sheetName
-  );
+  // Tạo tab mới nếu chưa có — và lấy sheetId (cần cho phần format)
+  const meta        = await sheets.spreadsheets.get({ spreadsheetId });
+  const existingTab = meta.data.sheets?.find(s => s.properties?.title === sheetName);
 
-  if (!existingTab) {
-    await sheets.spreadsheets.batchUpdate({
+  let sheetId = existingTab?.properties?.sheetId ?? null;
+  if (sheetId === null) {
+    const added = await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
-      requestBody: {
-        requests: [{ addSheet: { properties: { title: sheetName } } }],
-      },
+      requestBody: { requests: [{ addSheet: { properties: { title: sheetName } } }] },
     });
+    sheetId = added.data.replies?.[0]?.addSheet?.properties?.sheetId ?? 0;
   }
 
   await sheets.spreadsheets.values.update({
@@ -84,7 +82,66 @@ export async function writeSheet(
     requestBody:      { values: rows },
   });
 
-  return `${sheetUrl}#gid=${existingTab?.properties?.sheetId ?? 0}`;
+  await formatSheet(sheets, spreadsheetId, sheetId, rows.length, rows[0]?.length ?? 1);
+
+  return `${sheetUrl}#gid=${sheetId}`;
+}
+
+// Kẻ ô + bôi đậm header + đóng băng header + auto-resize cột cho dễ nhìn.
+async function formatSheet(
+  sheets: ReturnType<typeof google.sheets>,
+  spreadsheetId: string,
+  sheetId: number,
+  numRows: number,
+  numCols: number,
+): Promise<void> {
+  if (numRows < 1 || numCols < 1) return;
+
+  const border = { style: 'SOLID' as const, width: 1, color: { red: 0.7, green: 0.7, blue: 0.7 } };
+  const fullRange = { sheetId, startRowIndex: 0, endRowIndex: numRows, startColumnIndex: 0, endColumnIndex: numCols };
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        // Header: in đậm + nền xanh nhạt + canh giữa dọc
+        {
+          repeatCell: {
+            range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: numCols },
+            cell: {
+              userEnteredFormat: {
+                textFormat: { bold: true },
+                backgroundColor: { red: 0.85, green: 0.91, blue: 0.97 },
+                verticalAlignment: 'MIDDLE',
+              },
+            },
+            fields: 'userEnteredFormat(textFormat,backgroundColor,verticalAlignment)',
+          },
+        },
+        // Kẻ ô toàn bộ vùng dữ liệu (viền ngoài + lưới trong)
+        {
+          updateBorders: {
+            range: fullRange,
+            top: border, bottom: border, left: border, right: border,
+            innerHorizontal: border, innerVertical: border,
+          },
+        },
+        // Đóng băng dòng header
+        {
+          updateSheetProperties: {
+            properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
+            fields: 'gridProperties.frozenRowCount',
+          },
+        },
+        // Auto-resize cột cho vừa nội dung
+        {
+          autoResizeDimensions: {
+            dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: numCols },
+          },
+        },
+      ],
+    },
+  });
 }
 
 export async function readSheetByName(

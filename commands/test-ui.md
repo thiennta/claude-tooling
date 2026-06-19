@@ -468,6 +468,18 @@ Gọi tool `generate_report` với `projectPath`, toàn bộ dữ liệu từ c�
 
 > ℹ Kết quả test được tổng hợp vào Test Architect HTML report qua `generate_report`. Đây là report duy nhất cần thiết.
 
+**5d. Ghi kết quả ngược ra Google Sheet (chỉ khi có `--sheet-report`):**
+
+Nếu có `--sheet-report`, gọi lại tool `write_sheet_report` để điền cột **Result** vào chính tab đã tạo ở STEP 3b:
+- `sheetUrl`: URL từ `--sheet-report`
+- `module` + `date`: **giống hệt** STEP 3b (để trỏ đúng tab `<module>_<date>`)
+- `scenarios`: lấy danh sách scenarios đã approve (từ `read_back_sheet`), giữ nguyên `testName` / `type` / `expected` / `notes`, và điền thêm `result` cho mỗi cái:
+  - `✅ PASS` / `❌ FAIL` / `⊘ SKIP` — map từ `status` trong `allTests` của `run_tests`, match theo `testName`
+  - Với test FAIL, nối thêm category từ `classify_results`, vd `❌ FAIL — real_bug`
+
+> ⚠ Match `result` theo đúng `testName` trên Sheet (từ `read_back_sheet`) để ghi đúng row.
+> ⚠ Luôn dùng tool `write_sheet_report` — KHÔNG dùng WebFetch/HTTP để ghi Sheet.
+
 Hiển thị:
 
 ```

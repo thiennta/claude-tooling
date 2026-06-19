@@ -108,8 +108,9 @@ Sau khi nhấn Enter → Claude đọc lại Sheet và sync test file theo nội
 | Type | `happy_path` / `error_case` / `validation` / `missing` |
 | Expected | Expected text hoặc URL |
 | Notes | Ghi chú tester (không ảnh hưởng test) |
+| Result | Kết quả sau khi chạy (`--run`): `✅ PASS` / `❌ FAIL` / `⊘ SKIP`, fail kèm category |
 
-Kết quả test → HTML report như bình thường (không ghi ngược lại Sheet).
+Khi chạy với `--sheet-report --run`: sau khi test xong, kết quả được ghi **ngược lại chính tab đó** ở cột **Result** (match theo Test Name) — đồng thời vẫn có HTML report đầy đủ kèm evidence.
 
 ---
 
@@ -162,8 +163,8 @@ Report bao gồm:
 | Tool | Mô tả |
 |------|-------|
 | `read_sheet_spec` | Đọc raw content từ Google Sheet (hỗ trợ `#gid=`) |
-| `write_sheet_report` | Ghi test scenarios ra tab mới trong Sheet |
-| `read_back_sheet` | Đọc lại Sheet sau khi tester review |
+| `write_sheet_report` | Ghi test scenarios ra tab Sheet (có cột Result); gọi lại sau `--run` để điền kết quả |
+| `read_back_sheet` | Đọc lại Sheet sau khi tester review (gồm cột Result) |
 
 ---
 
@@ -188,6 +189,8 @@ sinh tests/feature/<module>.spec.ts → generate_report
 write_sheet_report → DỪNG chờ tester review → read_back_sheet → sync test file
         ↓ (nếu --run)
 run_tests → classify_results → generate_report
+        ↓ (nếu --sheet-report + --run)
+write_sheet_report (điền cột Result vào tab cũ)
 ```
 
 ### `/test-api`
@@ -209,6 +212,8 @@ sinh e2e/api/<module>.api.spec.ts → generate_report
 write_sheet_report → DỪNG chờ tester review → read_back_sheet → sync test file
         ↓ (nếu --run)
 run_tests → classify_results → generate_report
+        ↓ (nếu --sheet-report + --run)
+write_sheet_report (điền cột Result vào tab cũ)
 ```
 
 ---

@@ -319,7 +319,7 @@ server.tool(
 
 server.tool(
   'write_sheet_report',
-  'Ghi danh sách test scenarios ra một tab mới trong Google Sheet để tester review',
+  'Ghi danh sách test scenarios ra một tab trong Google Sheet (Test Name/Type/Expected/Notes/Result). Gọi lần đầu để tester review; gọi lại sau khi --run với field "result" để điền cột Result.',
   {
     sheetUrl:  z.string().describe('URL của Google Sheet'),
     module:    z.string().describe('Tên module — dùng làm prefix tên tab'),
@@ -329,7 +329,8 @@ server.tool(
       type:     z.string(),
       expected: z.string(),
       notes:    z.string().optional(),
-    })).describe('Danh sách test scenarios'),
+      result:   z.string().optional(),
+    })).describe('Danh sách test scenarios (result điền sau khi chạy test)'),
   },
   async ({ sheetUrl, module, date, scenarios }) => {
     const result = await writeSheetReport(sheetUrl, module, date, scenarios);
