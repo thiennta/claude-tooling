@@ -118,9 +118,16 @@ $('source').addEventListener('change', updateLinkVisibility);
 
 function setRunning(running) {
   const btn = document.querySelector('.btn-run');
+  const stop = $('stop');
   btn.disabled = running;
   btn.textContent = running ? '⏳ Running...' : '▶ Run';
+  stop.style.display = running ? '' : 'none';
 }
+
+$('stop').addEventListener('click', () => {
+  wsSend({ type: 'restart', cwd: $('project').value.trim() });
+  setRunning(false);
+});
 
 $('form').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -131,10 +138,6 @@ $('form').addEventListener('submit', (e) => {
   wsSend({ type: 'run', cwd, command });
 });
 
-$('restart').addEventListener('click', () => {
-  wsSend({ type: 'restart', cwd: $('project').value.trim() });
-  term.clear();
-});
 
 $('clear').addEventListener('click', () => term.clear());
 
