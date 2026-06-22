@@ -146,10 +146,27 @@ async function openModal(startPath) {
   $('modalOverlay').classList.add('open');
 }
 
-function addDirItem(list, icon, label, onClick) {
+function addDirItem(list, icon, label, fullPath, onNavigate) {
   const li = document.createElement('li');
   li.textContent = `${icon} ${label}`;
-  li.addEventListener('click', onClick);
+  li.dataset.path = fullPath || '';
+
+  // Click 1 lần: chọn (highlight + cập nhật path)
+  li.addEventListener('click', () => {
+    list.querySelectorAll('li.selected').forEach((el) => el.classList.remove('selected'));
+    if (fullPath) {
+      li.classList.add('selected');
+      currentModalPath = fullPath;
+      $('modalPath').textContent = fullPath;
+      $('modalSelect').disabled = false;
+    } else {
+      onNavigate();
+    }
+  });
+
+  // Click 2 lần: đi vào trong
+  li.addEventListener('dblclick', () => { if (onNavigate) onNavigate(); });
+
   list.appendChild(li);
 }
 
@@ -161,7 +178,7 @@ async function loadDrives() {
   $('modalPath').textContent = 'Chọn ổ đĩa';
   currentModalPath = '';
   $('modalSelect').disabled = true;
-  data.drives.forEach((d) => addDirItem(list, '💾', d, () => loadDirs(d)));
+  data.drives.forEach((d) => addDirItem(list, '💾', d, d, () => loadDirs(d)));
 }
 
 async function loadDirs(reqPath) {
@@ -178,14 +195,14 @@ async function loadDirs(reqPath) {
 
   // Trên Windows: khi đang ở root ổ đĩa (C:\) thì nút ".." → danh sách ổ đĩa
   if (data.parent && data.parent !== data.path) {
-    addDirItem(list, '📂', '..', () => loadDirs(data.parent));
+    addDirItem(list, '📂', '..', null, () => loadDirs(data.parent));
   } else if (isWin32) {
-    addDirItem(list, '💻', 'My Computer (đổi ổ đĩa)', () => loadDrives());
+    addDirItem(list, '💻', 'Chọn ổ đĩa khác', null, () => loadDrives());
   }
 
   data.dirs.forEach((d) => {
     const name = d.split(/[\\/]/).pop();
-    addDirItem(list, '📁', name, () => loadDirs(d));
+    addDirItem(list, '📁', name, d, () => loadDirs(d));
   });
 }
 
