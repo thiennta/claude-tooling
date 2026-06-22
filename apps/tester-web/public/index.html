@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Test Runner</title>
+  <link rel="stylesheet" href="/xterm/css/xterm.css" />
+  <style>
+    :root {
+      --bg: #1e1e2e; --panel: #252537; --border: #3a3a52;
+      --text: #cdd6f4; --muted: #9399b2; --accent: #89b4fa; --accent2: #a6e3a1;
+      --field: #313244;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      display: flex; flex-direction: column; height: 100vh;
+      background: var(--bg); color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif; font-size: 13px;
+    }
+    .form {
+      background: var(--panel); border-bottom: 1px solid var(--border);
+      padding: 12px 16px; display: grid; gap: 10px 14px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .form h1 { grid-column: 1 / -1; margin: 0 0 2px; font-size: 15px; color: var(--accent); }
+    .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .field.full { grid-column: 1 / -1; }
+    .row { display: flex; gap: 8px; align-items: stretch; }
+    .row input { flex: 1; }
+    .row button { white-space: nowrap; }
+    label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    input[type=text], select {
+      background: var(--field); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 7px 9px; font-size: 13px; width: 100%;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    .opts { grid-column: 1 / -1; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+    .opts label { display: flex; align-items: center; gap: 6px; text-transform: none; color: var(--text); font-size: 13px; }
+    .actions { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; }
+    button {
+      border: none; border-radius: 6px; padding: 8px 16px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .btn-run { background: var(--accent); color: #1e1e2e; }
+    .btn-run:hover:not(:disabled) { filter: brightness(1.08); }
+    .btn-run:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { color: var(--text); }
+    .preview {
+      grid-column: 1 / -1; background: #11111b; border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 10px; font-family: "Cascadia Code", Consolas, monospace;
+      font-size: 12px; color: var(--accent2); word-break: break-all; min-height: 18px;
+    }
+    #terminal { flex: 1; min-height: 0; padding: 6px 8px; background: #11111b; }
+
+    /* Dir picker modal */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.6); z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px; width: 520px; max-width: 95vw;
+    }
+    .modal h2 { margin: 0 0 12px; font-size: 14px; color: var(--accent); }
+    .modal-path {
+      background: #11111b; border: 1px solid var(--border); border-radius: 6px;
+      padding: 7px 10px; font-family: monospace; font-size: 12px;
+      color: var(--muted); margin-bottom: 10px; word-break: break-all;
+    }
+    .dir-list { list-style: none; padding: 0; margin: 0 0 14px; max-height: 260px; overflow-y: auto; }
+    .dir-list li {
+      padding: 7px 10px; border-radius: 5px; cursor: pointer;
+      font-size: 13px; display: flex; align-items: center; gap: 8px;
+    }
+    .dir-list li:hover { background: var(--field); }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+  <form class="form" id="form" autocomplete="off">
+    <h1>🤖 AI Test Runner</h1>
+
+    <div class="field full">
+      <label for="project">Project (thư mục cần test)</label>
+      <div class="row">
+        <input type="text" id="project" placeholder="vd: /home/user/my-project" />
+        <button type="button" class="btn-ghost" id="browse">📁 Duyệt...</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="skill">Loại test</label>
+      <select id="skill">
+        <option value="test-ui">UI / E2E (test-ui)</option>
+        <option value="test-api">API (test-api)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="source">Spec từ</label>
+      <select id="source">
+        <option value="none">Không có spec (theo code)</option>
+        <option value="figma">Figma link</option>
+        <option value="sheet">Google Sheet link</option>
+        <option value="markdown">Markdown spec (file/thư mục)</option>
+      </select>
+    </div>
+
+    <div class="field full" id="linkWrap">
+      <label for="link" id="linkLabel">Figma link</label>
+      <input type="text" id="link" placeholder="https://www.figma.com/design/..." />
+    </div>
+
+    <div class="field">
+      <label for="module">Module (tùy chọn)</label>
+      <input type="text" id="module" placeholder="vd: login" />
+    </div>
+
+    <div class="field">
+      <label for="sheetReport">Sheet report URL (tùy chọn)</label>
+      <input type="text" id="sheetReport" placeholder="ghi kịch bản ra Sheet để review" />
+    </div>
+
+    <div class="opts">
+      <label><input type="checkbox" id="run" /> Chạy test sau khi sinh (--run)</label>
+      <label><input type="checkbox" id="coverage" /> Chỉ phân tích coverage (--coverage)</label>
+    </div>
+
+    <div class="preview" id="preview"></div>
+
+    <div class="actions">
+      <button type="submit" class="btn-run">▶ Run</button>
+      <button type="button" class="btn-ghost" id="restart">⟳ Restart shell</button>
+      <button type="button" class="btn-ghost" id="clear">Clear</button>
+      <span style="color:var(--muted);font-size:12px;">Checkpoint hiện ngay trong terminal bên dưới — trả lời như CLI.</span>
+    </div>
+  </form>
+
+  <div id="terminal"></div>
+
+  <!-- Dir picker modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <h2>📁 Chọn thư mục project</h2>
+      <div class="modal-path" id="modalPath"></div>
+      <ul class="dir-list" id="dirList"></ul>
+      <div class="modal-actions">
+        <button type="button" class="btn-run" id="modalSelect">Chọn thư mục này</button>
+        <button type="button" class="btn-ghost" id="modalCancel">Huỷ</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/xterm/lib/xterm.js"></script>
+  <script src="/xterm-fit/lib/addon-fit.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
