@@ -153,31 +153,22 @@ function isDriveRoot(p) {
 
 async function openModal(startPath) {
   await platformReady;
-  await loadDirs(startPath || $('project').value.trim() || '');
+  const start = startPath || $('project').value.trim();
+  if (start) {
+    await loadDirs(start);
+  } else if (isWin32) {
+    await loadDrives();
+  } else {
+    await loadDirs('');
+  }
   $('modalOverlay').classList.add('open');
 }
 
-function addDirItem(list, icon, label, fullPath, onNavigate) {
+// Click vào item bất kỳ = đi vào trong (navigate). Folder đang đứng hiện ở path bar = folder được chọn.
+function addDirItem(list, icon, label, onNavigate) {
   const li = document.createElement('li');
   li.textContent = `${icon} ${label}`;
-  li.dataset.path = fullPath || '';
-
-  // Click 1 lần: chọn (highlight + cập nhật path)
-  li.addEventListener('click', () => {
-    list.querySelectorAll('li.selected').forEach((el) => el.classList.remove('selected'));
-    if (fullPath) {
-      li.classList.add('selected');
-      currentModalPath = fullPath;
-      $('modalPath').textContent = fullPath;
-      $('modalSelect').disabled = false;
-    } else {
-      onNavigate();
-    }
-  });
-
-  // Click 2 lần: đi vào trong
-  li.addEventListener('dblclick', () => { if (onNavigate) onNavigate(); });
-
+  if (onNavigate) li.addEventListener('click', onNavigate);
   list.appendChild(li);
 }
 
@@ -186,10 +177,15 @@ async function loadDrives() {
   const data = await res.json();
   const list = $('dirList');
   list.innerHTML = '';
-  $('modalPath').textContent = 'Chọn ổ đĩa';
+  $('modalPath').textContent = 'Chọn ổ đĩa — click vào ổ đĩa để vào trong';
   currentModalPath = '';
   $('modalSelect').disabled = true;
-  data.drives.forEach((d) => addDirItem(list, '💾', d, d, () => loadDirs(d)));
+  $('modalSelect').textContent = 'Chọn thư mục này';
+  if (data.drives.length === 0) {
+    await loadDirs('');
+    return;
+  }
+  data.drives.forEach((d) => addDirItem(list, '💾', d, () => loadDirs(d)));
 }
 
 async function loadDirs(reqPath) {
@@ -200,6 +196,7 @@ async function loadDirs(reqPath) {
   currentModalPath = data.path;
   $('modalPath').textContent = data.path;
   $('modalSelect').disabled = false;
+  $('modalSelect').textContent = `✅ Chọn: ${data.path.split(/[\\/]/).filter(Boolean).pop() || data.path}`;
 
   const list = $('dirList');
   list.innerHTML = '';
@@ -208,16 +205,15 @@ async function loadDirs(reqPath) {
   const onWindows = isWin32 || isWindowsPath(data.path);
 
   if (data.parent && data.parent !== data.path && !atDriveRoot) {
-    addDirItem(list, '📂', '..', null, () => loadDirs(data.parent));
+    addDirItem(list, '📂', '..', () => loadDirs(data.parent));
   }
-  // Luôn hiện nút đổi ổ đĩa khi ở drive root trên Windows
   if (onWindows) {
-    addDirItem(list, '💻', 'Đổi ổ đĩa (C:\\, D:\\...)', null, () => loadDrives());
+    addDirItem(list, '💻', 'Đổi ổ đĩa (C:\\, D:\\...)', () => loadDrives());
   }
 
   data.dirs.forEach((d) => {
     const name = d.split(/[\\/]/).pop();
-    addDirItem(list, '📁', name, d, () => loadDirs(d));
+    addDirItem(list, '📁', name, () => loadDirs(d));
   });
 }
 
