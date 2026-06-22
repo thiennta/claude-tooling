@@ -146,6 +146,23 @@ async function openModal(startPath) {
   $('modalOverlay').classList.add('open');
 }
 
+function addDirItem(list, icon, label, onClick) {
+  const li = document.createElement('li');
+  li.textContent = `${icon} ${label}`;
+  li.addEventListener('click', onClick);
+  list.appendChild(li);
+}
+
+async function loadDrives() {
+  const res = await fetch('/api/drives');
+  const data = await res.json();
+  const list = $('dirList');
+  list.innerHTML = '';
+  $('modalPath').textContent = 'My Computer';
+  currentModalPath = '';
+  data.drives.forEach((d) => addDirItem(list, '💾', d, () => loadDirs(d)));
+}
+
 async function loadDirs(reqPath) {
   const res = await fetch(`/api/dirs?path=${encodeURIComponent(reqPath)}`);
   const data = await res.json();
@@ -157,20 +174,16 @@ async function loadDirs(reqPath) {
   const list = $('dirList');
   list.innerHTML = '';
 
-  // ".." đi lên thư mục cha
+  // Trên Windows: khi đang ở root ổ đĩa (C:\) thì nút ".." → danh sách ổ đĩa
   if (data.parent && data.parent !== data.path) {
-    const li = document.createElement('li');
-    li.textContent = '📂 ..';
-    li.addEventListener('click', () => loadDirs(data.parent));
-    list.appendChild(li);
+    addDirItem(list, '📂', '..', () => loadDirs(data.parent));
+  } else if (isWin32) {
+    addDirItem(list, '💻', 'My Computer (đổi ổ đĩa)', () => loadDrives());
   }
 
   data.dirs.forEach((d) => {
-    const li = document.createElement('li');
     const name = d.split(/[\\/]/).pop();
-    li.textContent = `📁 ${name}`;
-    li.addEventListener('click', () => loadDirs(d));
-    list.appendChild(li);
+    addDirItem(list, '📁', name, () => loadDirs(d));
   });
 }
 

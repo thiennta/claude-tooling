@@ -56,6 +56,22 @@ app.get('/api/platform', (_req, res) => {
   res.json({ win32: process.platform === 'win32' });
 });
 
+// Liệt kê ổ đĩa trên Windows (C:\, D:\, ...)
+app.get('/api/drives', (_req, res) => {
+  if (process.platform !== 'win32') return res.json({ drives: [] });
+  const { execSync } = require('child_process');
+  try {
+    const out = execSync('wmic logicaldisk get name', { encoding: 'utf8' });
+    const drives = out.split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => /^[A-Z]:$/.test(l))
+      .map((l) => l + '\\');
+    res.json({ drives });
+  } catch {
+    res.json({ drives: [] });
+  }
+});
+
 // API duyệt thư mục — thay cho native folder picker của Electron
 app.get('/api/dirs', (req, res) => {
   // Resolve để loại bỏ path traversal (../../etc)
