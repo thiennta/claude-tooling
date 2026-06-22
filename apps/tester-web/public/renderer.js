@@ -2,7 +2,7 @@
 
 // ── Platform (server-side OS) ────────────────────────────────────────────────
 let isWin32 = false;
-fetch('/api/platform').then((r) => r.json()).then((d) => { isWin32 = d.win32; });
+const platformReady = fetch('/api/platform').then((r) => r.json()).then((d) => { isWin32 = d.win32; });
 
 // ── WebSocket ────────────────────────────────────────────────────────────────
 const ws = new WebSocket(`ws://${location.host}`);
@@ -141,7 +141,18 @@ $('clear').addEventListener('click', () => term.clear());
 // ── Dir picker modal ─────────────────────────────────────────────────────────
 let currentModalPath = '';
 
+// Detect Windows từ path pattern (C:\, D:\) — không phụ thuộc vào async flag
+function isWindowsPath(p) {
+  return /^[A-Za-z]:\\/.test(p);
+}
+
+// Detect đang ở drive root (C:\)
+function isDriveRoot(p) {
+  return /^[A-Za-z]:\\$/.test(p);
+}
+
 async function openModal(startPath) {
+  await platformReady;
   await loadDirs(startPath || $('project').value.trim() || '');
   $('modalOverlay').classList.add('open');
 }
@@ -193,11 +204,15 @@ async function loadDirs(reqPath) {
   const list = $('dirList');
   list.innerHTML = '';
 
-  // Trên Windows: khi đang ở root ổ đĩa (C:\) thì nút ".." → danh sách ổ đĩa
-  if (data.parent && data.parent !== data.path) {
+  const atDriveRoot = isDriveRoot(data.path);
+  const onWindows = isWin32 || isWindowsPath(data.path);
+
+  if (data.parent && data.parent !== data.path && !atDriveRoot) {
     addDirItem(list, '📂', '..', null, () => loadDirs(data.parent));
-  } else if (isWin32) {
-    addDirItem(list, '💻', 'Chọn ổ đĩa khác', null, () => loadDrives());
+  }
+  // Luôn hiện nút đổi ổ đĩa khi ở drive root trên Windows
+  if (onWindows) {
+    addDirItem(list, '💻', 'Đổi ổ đĩa (C:\\, D:\\...)', null, () => loadDrives());
   }
 
   data.dirs.forEach((d) => {
