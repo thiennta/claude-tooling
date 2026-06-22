@@ -158,8 +158,9 @@ async function loadDrives() {
   const data = await res.json();
   const list = $('dirList');
   list.innerHTML = '';
-  $('modalPath').textContent = 'My Computer';
+  $('modalPath').textContent = 'Chọn ổ đĩa';
   currentModalPath = '';
+  $('modalSelect').disabled = true;
   data.drives.forEach((d) => addDirItem(list, '💾', d, () => loadDirs(d)));
 }
 
@@ -170,6 +171,7 @@ async function loadDirs(reqPath) {
 
   currentModalPath = data.path;
   $('modalPath').textContent = data.path;
+  $('modalSelect').disabled = false;
 
   const list = $('dirList');
   list.innerHTML = '';
