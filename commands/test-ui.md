@@ -12,6 +12,7 @@ Parse các flag sau:
 - `--coverage` — chỉ hiện gap analysis, không sinh test file
 - `--sheet-spec <url>` — đọc spec từ Google Sheet thay vì markdown file
 - `--sheet-report <url>` — ghi test scenarios ra Google Sheet để tester review trước khi chạy
+- `--figma-spec <url>` — đọc spec từ Figma file thay vì markdown file (URL dạng figma.com/design/...)
 
 Nếu có `--project <path>`, dùng path đó làm `projectPath`. Nếu không, dùng `cwd`.
 
@@ -26,18 +27,35 @@ Xác định `projectPath`: dùng `--project <path>` nếu có, nếu không dù
 **Wave 1 — chạy song song (không có dependency):**
 
 1. Gọi tool `detect_ui_framework` với `projectPath`
-2. Nếu có `--sheet-spec`:
+2. Nếu có `--figma-spec`:
+   - Gọi tool `read_figma_spec` với `figmaUrl` (URL từ `--figma-spec`) + `nodeId` nếu URL có `?node-id=`
+   - Từ kết quả `FigmaSpecResult`, tạo `ParsedSpec` giả: mỗi screen → 1 feature, mỗi textContent item → 1 scenario `happy_path`
+   - Bỏ qua `scan_specs` và `parse_markdown_spec`
+
+   Nếu có `--sheet-spec`:
    - Gọi tool `read_sheet_spec` với `sheetUrl` + `sheetName` (nếu có)
    - Claude tự đọc hiểu raw rows, extract scenarios — không yêu cầu format cố định
    - Bỏ qua `scan_specs` và `parse_markdown_spec`
    
-   Nếu không có `--sheet-spec`:
+   Nếu không có `--figma-spec` và không có `--sheet-spec`:
    - Gọi tool `scan_specs` với `projectPath` + `specPath` (nếu có `--spec`) + `moduleFilter` (nếu có `--module`)
 
 **Wave 2 — chờ Wave 1 xong, sau đó chạy song song (cần `framework` từ `detect_ui_framework`):**
 
 3. Gọi tool `scan_ui_flows` với `projectPath` + `framework` + `moduleFilter`
 4. Gọi tool `scan_ui_validation` với `projectPath` + `framework` + `moduleFilter`
+
+**Wave 3 — chỉ khi có `--figma-spec`, chờ Wave 1 + Wave 2 xong:**
+
+5. So sánh **Figma vs Code** bằng cách đối chiếu thủ công (không cần tool mới):
+   - Lấy toàn bộ `textContent` từ `FigmaSpecResult` (labels, button text, placeholder, error messages, headings)
+   - So sánh với text thực tế tìm được trong `scan_ui_flows` + `scan_ui_validation` (selector text, component props, hardcoded strings trong code)
+   - Phân loại từng mismatch:
+     - `text_mismatch` — text trong Figma khác text trong code (ví dụ: Figma "Submit" vs code "Confirm")
+     - `missing_in_code` — element/screen có trong Figma nhưng không tìm thấy trong code
+     - `extra_in_code` — element/screen có trong code nhưng không có trong Figma
+     - `flow_mismatch` — redirect/navigation trong Figma khác với route trong code
+   - Lưu kết quả vào `figmaCodeDiffs` để hiển thị ở CHECKPOINT 1
 
 **Sau khi có kết quả `detect_ui_framework`:**
 
@@ -99,6 +117,21 @@ Form: <component>
   - <list thêm dựa trên flows tìm được, ví dụ: sản phẩm active, thẻ test, URL môi trường>
   - Base URL: <baseURL từ detect_ui_framework>
 
+── Figma vs Code mismatches ───────────────
+<Chỉ hiển thị khi có --figma-spec. Nếu không có --figma-spec → bỏ qua section này.>
+
+<Nếu KHÔNG có mismatch:>
+  ✓ Figma và code khớp nhau
+
+<Nếu CÓ mismatch — hiển thị từng mục:>
+  ⚠ MISMATCHES (<N> mục) — Figma là source of truth, các mục sau sẽ được sinh test tự động:
+    [text_mismatch]    "<screen/component>" — Figma: "<text figma>" → Code: "<text code>"
+    [missing_in_code]  "<screen/element>" có trong Figma nhưng không tìm thấy trong code
+    [extra_in_code]    "<screen/element>" có trong code nhưng không có trong Figma
+    [flow_mismatch]    "<action>" — Figma redirect: "<url figma>" → Code redirect: "<url code>"
+
+  → Danh sách này chỉ để báo cáo. Tester xác nhận lại với developer trước khi fix.
+
 ── Spec conflicts ─────────────────────────
 <Nếu KHÔNG có conflict:>
   ✓ Không phát hiện conflict giữa các spec files
@@ -125,6 +158,7 @@ Form: <component>
 ════════════════════════════════════════════
 
 Requirements đúng chưa? Có bổ sung gì không?
+<Nếu đọc từ --figma-spec:> Tôi đọc từ Figma và hiểu spec như trên — đúng không?
 <Nếu đọc từ --sheet-spec:> Tôi đọc từ Sheet và hiểu spec như trên — đúng không?
 <Nếu có conflict:> Chọn chiến lược resolve (1/2/3/4, mặc định = 1):
 (Enter để tiếp tục / gõ để chỉnh sửa)
@@ -231,7 +265,11 @@ Nếu file **đã tồn tại**, hiển thị interactive prompt:
 - Nếu có `--sheet-report`: dùng danh sách scenarios đã approve từ `read_back_sheet` (STEP 3b)
 - Nếu không có `--sheet-report`: dùng toàn bộ scenarios từ gap_analysis
 
-Dựa trên scenarios đã xác định và lựa chọn conflict của user, sinh Playwright test files.
+> ⚠ **TUYỆT ĐỐI không tự thêm, bớt, hoặc sửa scenario dựa trên code.** Spec (Figma / Sheet / markdown) là nguồn sự thật duy nhất. Nếu user sửa kịch bản trên Sheet → sinh test theo kịch bản đã sửa, bất kể code có gợi ý gì khác. Code chỉ dùng để lấy selectors — không dùng để quyết định test case nào tồn tại.
+
+> ⚠ **`scenario.expected` từ sheet là assertion bắt buộc — không được thay bằng assertion khác.** Dùng text đó trực tiếp trong `toContainText(...)` hoặc `toHaveURL(...)`. Nếu `expected` có vẻ sai về mặt kỹ thuật (ví dụ: tên test gợi ý error nhưng expected lại là redirect thành công) → vẫn sinh test theo đúng `expected` đó — test fail là tín hiệu hợp lệ từ tester, không phải lỗi của tool. **Tuyệt đối không dùng tên scenario hay hiểu biết về behavior để suy luận assertion thay cho `expected`.**
+
+Sinh Playwright test files **chỉ từ danh sách scenarios input ở trên**, không thêm bất kỳ case nào ngoài danh sách đó.
 
 **Quy tắc sinh test:**
 
@@ -344,6 +382,13 @@ Tests generated: <N>
 Nên thêm data-testid vào:
   └─ <component> → <list fields>
 
+── Figma vs Code mismatches ───────────────
+<Chỉ hiển thị khi có --figma-spec và có figmaCodeDiffs. Nếu không → bỏ qua.>
+  ⚠ <N> mismatch cần tester xác nhận lại với developer:
+    [text_mismatch]   "<component>" — Figma: "<text>" → Code: "<text>"
+    [missing_in_code] "<element>" có trong Figma nhưng chưa có trong code
+    [flow_mismatch]   "<action>" — Figma: "<url>" → Code: "<url>"
+
 ── Generated file ─────────────────────────
   tests/feature/<module>.spec.ts
 
@@ -430,6 +475,18 @@ Gọi tool `generate_report` với `projectPath`, toàn bộ dữ liệu từ c�
 
 > ℹ Kết quả test được tổng hợp vào Test Architect HTML report qua `generate_report`. Đây là report duy nhất cần thiết.
 
+**5d. Ghi kết quả ngược ra Google Sheet (chỉ khi có `--sheet-report`):**
+
+Nếu có `--sheet-report`, gọi lại tool `write_sheet_report` để điền cột **Result** vào chính tab đã tạo ở STEP 3b:
+- `sheetUrl`: URL từ `--sheet-report`
+- `module` + `date`: **giống hệt** STEP 3b (để trỏ đúng tab `<module>_<date>`)
+- `scenarios`: lấy danh sách scenarios đã approve (từ `read_back_sheet`), giữ nguyên `testName` / `type` / `expected` / `notes`, và điền thêm `result` cho mỗi cái:
+  - `✅ PASS` / `❌ FAIL` / `⊘ SKIP` — map từ `status` trong `allTests` của `run_tests`, match theo `testName`
+  - Với test FAIL, nối thêm category từ `classify_results`, vd `❌ FAIL — real_bug`
+
+> ⚠ Match `result` theo đúng `testName` trên Sheet (từ `read_back_sheet`) để ghi đúng row.
+> ⚠ Luôn dùng tool `write_sheet_report` — KHÔNG dùng WebFetch/HTTP để ghi Sheet.
+
 Hiển thị:
 
 ```
@@ -458,6 +515,7 @@ Hiển thị:
 ```
 
 **Sau khi hiển thị xong block trên → DỪNG HOÀN TOÀN:**
+- Không tự ý sửa bất kỳ source code nào của project (components, routes, controllers, config...)
 - Không tự ý sửa test file
 - Không chạy lại test để "fix" lỗi
 - Không hỏi user có muốn fix không
@@ -469,6 +527,7 @@ Nếu user muốn sửa hoặc chạy lại, họ sẽ chủ động yêu cầu.
 
 ## Lưu ý chung
 
+- **TUYỆT ĐỐI không sửa source code của project** (components, routes, controllers, config, hay bất kỳ file nào) trong suốt quá trình — kể cả khi test fail. Chỉ báo cáo kết quả, không tự fix.
 - **KHÔNG dùng `--reporter=list`** (hoặc bất kỳ `--reporter` flag nào) khi chạy test thủ công — override HTML reporter, mất file report. Luôn dùng tool `run_tests`.
 - Luôn dùng `process.env.TEST_EMAIL`, `process.env.TEST_PASSWORD`, `process.env.BASE_URL` thay vì hardcode credentials
 - Playwright config (`playwright.config.ts`) nếu chưa có → tạo tự động với `webServer` phù hợp framework

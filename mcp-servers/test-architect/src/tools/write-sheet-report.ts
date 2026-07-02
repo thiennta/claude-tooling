@@ -5,6 +5,7 @@ export interface ScenarioRow {
   type:      string;
   expected:  string;
   notes?:    string;
+  result?:   string;   // điền sau khi --run: ✅ PASS / ❌ FAIL / ⊘ SKIP
 }
 
 export interface WriteSheetReportResult {
@@ -26,10 +27,10 @@ export async function writeSheetReport(
 ): Promise<WriteSheetReportResult> {
   const sheetName = `${module}_${date}`;
 
-  const header = ['Test Name', 'Type', 'Expected', 'Notes'];
+  const header = ['Test Name', 'Type', 'Expected', 'Notes', 'Result'];
   const rows   = [
     header,
-    ...scenarios.map(s => [s.testName, s.type, s.expected, s.notes ?? '']),
+    ...scenarios.map(s => [s.testName, s.type, s.expected, s.notes ?? '', s.result ?? '']),
   ];
 
   const url = await writeSheet(sheetUrl, sheetName, rows);
@@ -51,6 +52,7 @@ export async function readBackSheet(
     type:     row[1] ?? '',
     expected: row[2] ?? '',
     notes:    row[3] ?? '',
+    result:   row[4] ?? '',
   }));
 
   return { rows: dataRows, scenarios };

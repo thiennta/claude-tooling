@@ -381,12 +381,28 @@ Gọi `classify_results` rồi `generate_report` với `testResults` bao gồm:
 - `failures`: danh sách failures đã classify
 - `allTests`: **toàn bộ** danh sách test cases từ `run_tests` (field `allTests` trong `TestRunResult`) — bắt buộc để report hiển thị đầy đủ test list kèm evidence.
 
-**Sau khi hiển thị xong → DỪNG HOÀN TOÀN.** Không tự sửa, không chạy lại.
+**5d. Ghi kết quả ngược ra Google Sheet (chỉ khi có `--sheet-report`):**
+
+Nếu có `--sheet-report`, gọi lại tool `write_sheet_report` để điền cột **Result** vào tab đã tạo ở STEP 3b:
+- `sheetUrl` + `module` + `date`: **giống hệt** STEP 3b (trỏ đúng tab `<module>_<date>`)
+- `scenarios`: danh sách đã approve (từ `read_back_sheet`), giữ nguyên các field cũ và thêm `result` cho mỗi cái — `✅ PASS` / `❌ FAIL` / `⊘ SKIP` map từ `status` trong `allTests`, match theo `testName`. Test FAIL nối thêm category từ `classify_results` (vd `❌ FAIL — real_bug`).
+
+> ⚠ Match theo đúng `testName` trên Sheet. Luôn dùng tool `write_sheet_report` — KHÔNG dùng WebFetch/HTTP.
+
+**Sau khi hiển thị xong → DỪNG HOÀN TOÀN:**
+- Không tự ý sửa bất kỳ source code nào của project (routes, controllers, models, config...)
+- Không tự ý sửa test file
+- Không chạy lại test để "fix" lỗi
+- Không hỏi user có muốn fix không
+- Không đề xuất thêm bất kỳ bước nào
+
+Nếu user muốn sửa hoặc chạy lại, họ sẽ chủ động yêu cầu.
 
 ---
 
 ## Lưu ý chung
 
+- **TUYỆT ĐỐI không sửa source code của project** (routes, controllers, models, config, hay bất kỳ file nào) trong suốt quá trình — kể cả khi test fail. Chỉ báo cáo kết quả, không tự fix.
 - **KHÔNG dùng `--reporter=list`** (hoặc bất kỳ `--reporter` flag nào) khi chạy test thủ công — override HTML reporter, mất file report. Luôn dùng tool `run_tests`.
 - Luôn dùng `process.env.BASE_URL`, `process.env.TEST_EMAIL`, `process.env.TEST_PASSWORD` — không hardcode
 - BE server phải chạy trước khi test — `playwright.config.js` dùng `reuseExistingServer: true`
