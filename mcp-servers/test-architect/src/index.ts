@@ -18,6 +18,7 @@ import { generateReport } from './tools/generate-report.js';
 import { readSheetSpec }  from './tools/read-sheet-spec.js';
 import { writeSheetReport, readBackSheet } from './tools/write-sheet-report.js';
 import { readFigmaSpec } from './tools/read-figma-spec.js';
+import { writeRunLog } from './tools/write-run-log.js';
 
 const server = new McpServer({
   name: 'test-architect',
@@ -347,6 +348,25 @@ server.tool(
   },
   async ({ sheetUrl, sheetName }) => {
     const result = await readBackSheet(sheetUrl, sheetName);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ─── Run log ──────────────────────────────────────────────────────────────────
+
+server.tool(
+  'write_run_log',
+  'Append một block nội dung (đã hiển thị trên CLI cho user) vào file test-architect-reports/run-log-full_<module>_<date>.md, kèm timestamp thật do tool tự sinh. Tự tạo file với header nếu chưa tồn tại. Gọi ngay sau mỗi block hiển thị (CHECKPOINT, REPORT, Test Results...).',
+  {
+    projectPath: z.string().describe('Absolute path to the project root'),
+    command:     z.string().describe('Tên lệnh đang chạy, vd: "/test-ui --module login ..."'),
+    module:      z.string().describe('Tên module — dùng làm phần tên file log'),
+    date:        z.string().describe('Ngày chạy (YYYY-MM-DD) — dùng làm phần tên file log'),
+    blockName:   z.string().describe('Tên block, vd: "CHECKPOINT 1", "STEP 4 — Report", "Test Results"'),
+    content:     z.string().describe('Nội dung markdown đã hiển thị cho user — copy nguyên văn, không tóm tắt'),
+  },
+  async ({ projectPath, command, module, date, blockName, content }) => {
+    const result = await writeRunLog(projectPath, command, module, date, blockName, content);
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   }
 );

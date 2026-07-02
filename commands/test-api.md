@@ -15,6 +15,49 @@ Nếu không có `--project`, dùng cwd.
 
 ---
 
+## RUN LOG — Ghi log tiến trình bằng tool `write_run_log` (ghi ngay trong lúc chạy, không đợi đến cuối)
+
+Ngay khi xác định được `projectPath` và `module` (hoặc "all" nếu không có `--module`), xác định `date` (YYYY-MM-DD hôm nay).
+
+**Checklist bắt buộc — 1 lần chạy đầy đủ (có `--sheet-report --run`) phải có đủ từng entry sau trong file log, đúng thứ tự, không được thiếu cái nào:**
+1. `STEP 1 — Scan`
+2. `CHECKPOINT 1`
+3. `User phản hồi cho CHECKPOINT 1`
+4. `STEP 2 — Gap Analysis` ← **dễ bị quên nhất vì step này không có block markdown nào hiển thị, chỉ có dòng state-anchor** — vẫn phải log
+5. `STEP 3b — Ghi scenarios ra Google Sheet`
+6. `User phản hồi cho STEP 3b — Ghi scenarios ra Google Sheet`
+7. `STEP 4 — Report`
+8. `CHECKPOINT 3` (chỉ khi không có `--sheet-report`)
+9. `STEP 5a — Setup auth`
+10. `STEP 5c — Test Results`
+11. `STEP 5d — Ghi kết quả ra Sheet` (chỉ khi có `--sheet-report`)
+12. `Kết thúc`
+
+Nếu bỏ `--run` hoặc `--sheet-report` thì bỏ tương ứng các entry STEP 3b/5. Trước khi coi workflow đã xong, tự rà lại danh sách này xem đã gọi `write_run_log` đủ chưa — đừng chỉ dựa vào cảm giác "chắc log rồi".
+
+**Nguyên tắc: CLI hiển thị gì cho user, file log ghi lại đúng y như vậy — đồng bộ 100%, không tóm tắt, không rút gọn, không bỏ sót.** Áp dụng cho TOÀN BỘ nội dung hiển thị trong suốt workflow, không riêng các block có tên cố định: CHECKPOINT 1/2/3, block "Kịch bản test đã ghi ra Google Sheet", REPORT, Test Results, STEP 5a (hỏi BASE_URL/TEST_EMAIL/TEST_PASSWORD), thông báo lỗi, câu hỏi xác nhận phát sinh, và bất kỳ đoạn text nào khác Claude in ra cho user. Không chắc có nên log hay không thì cứ log.
+
+Cách đảm bảo 2 bên khớp nhau tuyệt đối — **soạn nội dung đúng 1 lần, dùng chung cho cả hai nơi**, không soạn riêng hai bản:
+1. Soạn toàn bộ nội dung markdown của đoạn sắp hiển thị (đúng template quy định ở step tương ứng, nếu có).
+2. Gọi tool `write_run_log` với đúng nội dung đó — `projectPath`, `module`, `date`, `command`: `/test-api <$ARGUMENTS>`, `blockName`: **luôn bắt đầu bằng đúng tên STEP hiện tại** giống dòng state-anchor (vd `"STEP 1 — Scan"`, `"CHECKPOINT 1"`, `"STEP 2 — Gap Analysis"`, `"STEP 3b — Ghi scenarios ra Google Sheet"`, `"STEP 4 — Report"`, `"STEP 5a — Setup auth"`), `content`: nội dung vừa soạn.
+3. Dán lại **y nguyên chuỗi vừa truyền vào `content`** để hiển thị cho user — tuyệt đối không viết lại, không rút gọn hay chi tiết hơn ở bản hiển thị.
+
+Việc này thực hiện **trong cùng lượt phản hồi, trước khi kết thúc turn** (kể cả khi đoạn đó là điểm dừng chờ user).
+
+**Mỗi khi in dòng state-anchor `▶ [STEP X — tên step]` để bắt đầu một STEP mới** (kể cả khi STEP đó không có block markdown nào hiển thị riêng, ví dụ STEP 2 — Gap Analysis chỉ gọi tool chứ không in block) — gọi `write_run_log` ngay với `blockName` = đúng text trong ngoặc vuông (vd `"STEP 2 — Gap Analysis"`), `content` = 1-2 dòng tóm tắt đang làm gì (tool nào được gọi, input chính). Mục đích để file log giữ đúng thứ tự STEP nối tiếp nhau giống hệt CLI, không bị "nhảy cóc" giữa các block.
+
+Tool tự sinh timestamp thật và tự tạo file `test-architect-reports/run-log-full_<module>_<date>.md` (kèm header) nếu chưa tồn tại — không cần tự quản lý timestamp hay tạo file thủ công.
+
+Không được để dồn qua turn sau — nếu block là CHECKPOINT (dừng chờ user), phải gọi `write_run_log` cho CHECKPOINT đó ngay trước khi dừng, không đợi đến khi user trả lời rồi mới ghi gộp với bước kế tiếp.
+
+Sau khi user trả lời một điểm dừng, gọi thêm một lần `write_run_log` riêng với `blockName`: `"User phản hồi cho <tên block>"`, `content`: nguyên văn input user gõ.
+
+Ghi log là **best-effort** — nếu tool lỗi, tiếp tục workflow bình thường, không dừng cả task vì lỗi ghi log.
+
+Khi kết thúc toàn bộ workflow (dù thành công, bị abort, hay dừng giữa chừng do user), gọi `write_run_log` với `blockName`: `"Kết thúc"`, `content`: `"Trạng thái: <hoàn tất / dừng ở STEP X do user / lỗi>"`.
+
+---
+
 ## STEP 1 — Scan
 
 Xác định `projectPath` từ `--project` hoặc cwd.
@@ -356,6 +399,8 @@ Giống CHECKPOINT 3 của `/test-architect` — hiển thị danh sách tests, 
 
 **5a. Setup auth env:**
 
+Log ngay `blockName`: `"STEP 5a — Setup auth"` — dù có hỏi credentials hay không (nếu `.env.test` đã có sẵn thì `content` ghi lý do bỏ qua).
+
 Kiểm tra `.env.test`. Nếu chưa có:
 ```
 Test API cần credentials. Cung cấp:
@@ -381,6 +426,8 @@ Gọi `classify_results` rồi `generate_report` với `testResults` bao gồm:
 - `failures`: danh sách failures đã classify
 - `allTests`: **toàn bộ** danh sách test cases từ `run_tests` (field `allTests` trong `TestRunResult`) — bắt buộc để report hiển thị đầy đủ test list kèm evidence.
 
+Khi hiển thị kết quả cho user, log với `blockName`: `"STEP 5c — Test Results"`, theo đúng nguyên tắc soạn 1 lần dùng chung ở phần RUN LOG.
+
 **5d. Ghi kết quả ngược ra Google Sheet (chỉ khi có `--sheet-report`):**
 
 Nếu có `--sheet-report`, gọi lại tool `write_sheet_report` để điền cột **Result** vào tab đã tạo ở STEP 3b:
@@ -388,6 +435,8 @@ Nếu có `--sheet-report`, gọi lại tool `write_sheet_report` để điền 
 - `scenarios`: danh sách đã approve (từ `read_back_sheet`), giữ nguyên các field cũ và thêm `result` cho mỗi cái — `✅ PASS` / `❌ FAIL` / `⊘ SKIP` map từ `status` trong `allTests`, match theo `testName`. Test FAIL nối thêm category từ `classify_results` (vd `❌ FAIL — real_bug`).
 
 > ⚠ Match theo đúng `testName` trên Sheet. Luôn dùng tool `write_sheet_report` — KHÔNG dùng WebFetch/HTTP.
+
+Sau khi ghi kết quả ngược ra Sheet → log thêm 1 dòng xác nhận (blockName `"STEP 5d — Ghi kết quả ra Sheet"`) với đúng câu đã hiển thị cho user, không viết lại khác đi.
 
 **Sau khi hiển thị xong → DỪNG HOÀN TOÀN:**
 - Không tự ý sửa bất kỳ source code nào của project (routes, controllers, models, config...)
@@ -397,6 +446,8 @@ Nếu có `--sheet-report`, gọi lại tool `write_sheet_report` để điền 
 - Không đề xuất thêm bất kỳ bước nào
 
 Nếu user muốn sửa hoặc chạy lại, họ sẽ chủ động yêu cầu.
+
+Câu thông báo kết thúc (vd "Workflow hoàn tất — dừng tại đây theo quy định...") — dùng đúng câu này làm `content` cho entry `"Kết thúc"` ở phần RUN LOG (không rút gọn thành "Trạng thái: hoàn tất").
 
 ---
 

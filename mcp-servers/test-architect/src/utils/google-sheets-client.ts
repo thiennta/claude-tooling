@@ -84,10 +84,13 @@ export async function writeSheet(
 
   await formatSheet(sheets, spreadsheetId, sheetId, rows.length, rows[0]?.length ?? 1);
 
-  return `${sheetUrl}#gid=${sheetId}`;
+  // Cắt bỏ #gid=... và ?gid=... cũ trong sheetUrl (nếu có) trước khi nối gid của tab vừa ghi,
+  // tránh link bị lặp gid (vd: ...edit?gid=0#gid=0#gid=123).
+  const baseUrl = sheetUrl.split('#')[0].replace(/[?&]gid=\d+$/, '');
+  return `${baseUrl}#gid=${sheetId}`;
 }
 
-// Kẻ ô + bôi đậm header + đóng băng header + auto-resize cột cho dễ nhìn.
+// Kẻ ô + bôi đậm header + đóng băng header + auto-resize cột + tô màu cột Result cho dễ nhìn.
 async function formatSheet(
   sheets: ReturnType<typeof google.sheets>,
   spreadsheetId: string,
@@ -99,6 +102,35 @@ async function formatSheet(
 
   const border = { style: 'SOLID' as const, width: 1, color: { red: 0.7, green: 0.7, blue: 0.7 } };
   const fullRange = { sheetId, startRowIndex: 0, endRowIndex: numRows, startColumnIndex: 0, endColumnIndex: numCols };
+
+  // Số conditional format rule đang có trên sheet này — xóa hết trước khi thêm lại,
+  // tránh chồng rule khi writeSheet được gọi nhiều lần (STEP 3b ghi scenario, STEP 5d ghi lại Result).
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets(properties.sheetId,conditionalFormats)',
+  });
+  const existingRuleCount = meta.data.sheets?.find(s => s.properties?.sheetId === sheetId)
+    ?.conditionalFormats?.length ?? 0;
+
+  const resultColIndex = numCols - 1;
+  const resultRange = {
+    sheetId,
+    startRowIndex: 1, endRowIndex: numRows,
+    startColumnIndex: resultColIndex, endColumnIndex: resultColIndex + 1,
+  };
+
+  const conditionRule = (text: string, color: { red: number; green: number; blue: number }) => ({
+    addConditionalFormatRule: {
+      rule: {
+        ranges: [resultRange],
+        booleanRule: {
+          condition: { type: 'TEXT_CONTAINS' as const, values: [{ userEnteredValue: text }] },
+          format: { backgroundColor: color },
+        },
+      },
+      index: 0,
+    },
+  });
 
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
@@ -133,12 +165,41 @@ async function formatSheet(
             fields: 'gridProperties.frozenRowCount',
           },
         },
-        // Auto-resize cột cho vừa nội dung
+        // Auto-resize cột cho vừa nội dung (cột enum ngắn: Result)
         {
           autoResizeDimensions: {
             dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: numCols },
           },
         },
+        // Test Name / Type / Expected / Notes / Result chứa văn bản dài hoặc dễ bị ngắt giữa từ
+        // — đặt độ rộng cố định thay vì auto-resize (sẽ làm cột quá khổ hoặc chữ bị che), kèm wrap text để xuống dòng trong ô.
+        ...[
+          { col: 0, width: 380 }, // Test Name
+          { col: 1, width: 200 }, // Type
+          { col: 2, width: 400 }, // Expected
+          { col: 3, width: 200 }, // Notes
+          { col: 4, width: 200 }, // Result
+        ]
+          .filter(({ col }) => col < numCols)
+          .map(({ col, width }) => ({
+            updateDimensionProperties: {
+              range: { sheetId, dimension: 'COLUMNS' as const, startIndex: col, endIndex: col + 1 },
+              properties: { pixelSize: width },
+              fields: 'pixelSize',
+            },
+          })),
+        {
+          repeatCell: {
+            range: { sheetId, startRowIndex: 0, endRowIndex: numRows, startColumnIndex: 0, endColumnIndex: numCols },
+            cell: { userEnteredFormat: { wrapStrategy: 'WRAP' } },
+            fields: 'userEnteredFormat.wrapStrategy',
+          },
+        },
+        // Xóa rule cũ (nếu có) rồi thêm lại rule tô màu Result: PASS xanh / FAIL đỏ / SKIP xám
+        ...Array.from({ length: existingRuleCount }, () => ({ deleteConditionalFormatRule: { sheetId, index: 0 } })),
+        conditionRule('FAIL', { red: 0.96, green: 0.80, blue: 0.80 }),
+        conditionRule('SKIP', { red: 0.93, green: 0.93, blue: 0.93 }),
+        conditionRule('PASS', { red: 0.80, green: 0.94, blue: 0.80 }),
       ],
     },
   });
