@@ -85,15 +85,25 @@ export interface TestFailure {
   test: string;
   error: string;
   file: string;
-  screenshot?: string;  // absolute path to screenshot file captured on failure
+  screenshot?: string;
+}
+
+export interface TestCase {
+  test:       string;
+  file:       string;
+  status:     'passed' | 'failed' | 'skipped';
+  duration:   number;
+  screenshot?: string;
+  error?:     string;
 }
 
 export interface TestRunResult {
-  passed: number;
-  failed: number;
-  skipped: number;
+  passed:   number;
+  failed:   number;
+  skipped:  number;
   duration: number;
   failures: TestFailure[];
+  allTests: TestCase[];
 }
 
 export type FailureCategory = 'missing_testid' | 'needs_mock' | 'real_bug' | 'timeout' | 'unknown';

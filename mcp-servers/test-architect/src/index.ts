@@ -15,6 +15,9 @@ import { runTests } from './tools/run-tests.js';
 import { classifyResults } from './tools/classify-results.js';
 import { setupPlaywright } from './tools/setup-playwright.js';
 import { generateReport } from './tools/generate-report.js';
+import { readSheetSpec }  from './tools/read-sheet-spec.js';
+import { writeSheetReport, readBackSheet } from './tools/write-sheet-report.js';
+import { readFigmaSpec } from './tools/read-figma-spec.js';
 
 const server = new McpServer({
   name: 'test-architect',
@@ -222,7 +225,16 @@ server.tool(
           error: z.string(),
           category: z.string(),
           suggestion: z.string(),
+          screenshot: z.string().optional(),
         })),
+        allTests: z.array(z.object({
+          test: z.string(),
+          file: z.string(),
+          status: z.enum(['passed', 'failed', 'skipped']),
+          duration: z.number(),
+          screenshot: z.string().optional(),
+          error: z.string().optional(),
+        })).optional(),
       }).optional(),
       generatedFile: z.string().optional(),
     }).describe('Report data'),
@@ -270,6 +282,71 @@ server.tool(
   },
   async ({ projectPath, framework, moduleFilter }) => {
     const result = await scanApiFlows(projectPath, framework, moduleFilter);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ─── Figma tools ─────────────────────────────────────────────────────────────
+
+server.tool(
+  'read_figma_spec',
+  'Đọc Figma file qua REST API và trả về danh sách screens/frames với text content. Dùng thay thế cho parse_markdown_spec khi spec đến từ Figma.',
+  {
+    figmaUrl: z.string().describe('Figma file URL (figma.com/design/...) hoặc bare file key'),
+    nodeId: z.string().optional().describe('Node ID cụ thể để chỉ đọc 1 frame/component (lấy từ URL sau ?node-id=)'),
+    figmaToken: z.string().optional().describe('Figma Personal Access Token — bỏ qua nếu đã setup qua setup.js'),
+  },
+  async ({ figmaUrl, nodeId, figmaToken }) => {
+    const result = await readFigmaSpec(figmaUrl, nodeId, figmaToken);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ─── Google Sheets tools ──────────────────────────────────────────────────────
+
+server.tool(
+  'read_sheet_spec',
+  'Đọc raw content từ Google Sheet để Claude tự interpret thành spec. Trả về rows[][] không qua xử lý.',
+  {
+    sheetUrl:  z.string().describe('URL của Google Sheet'),
+    sheetName: z.string().optional().describe('Tên tab cần đọc (mặc định: tab đầu tiên)'),
+  },
+  async ({ sheetUrl, sheetName }) => {
+    const result = await readSheetSpec(sheetUrl, sheetName);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'write_sheet_report',
+  'Ghi danh sách test scenarios ra một tab trong Google Sheet (Test Name/Type/Expected/Notes/Result). Gọi lần đầu để tester review; gọi lại sau khi --run với field "result" để điền cột Result.',
+  {
+    sheetUrl:  z.string().describe('URL của Google Sheet'),
+    module:    z.string().describe('Tên module — dùng làm prefix tên tab'),
+    date:      z.string().describe('Ngày tạo (YYYY-MM-DD) — dùng làm suffix tên tab'),
+    scenarios: z.array(z.object({
+      testName: z.string(),
+      type:     z.string(),
+      expected: z.string(),
+      notes:    z.string().optional(),
+      result:   z.string().optional(),
+    })).describe('Danh sách test scenarios (result điền sau khi chạy test)'),
+  },
+  async ({ sheetUrl, module, date, scenarios }) => {
+    const result = await writeSheetReport(sheetUrl, module, date, scenarios);
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  'read_back_sheet',
+  'Đọc lại Sheet sau khi tester review — lấy scenarios còn lại (đã xóa row = bỏ test, đã sửa = update)',
+  {
+    sheetUrl:  z.string().describe('URL của Google Sheet'),
+    sheetName: z.string().describe('Tên tab đã ghi (module_date)'),
+  },
+  async ({ sheetUrl, sheetName }) => {
+    const result = await readBackSheet(sheetUrl, sheetName);
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   }
 );

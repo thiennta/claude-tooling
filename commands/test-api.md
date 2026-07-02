@@ -8,6 +8,8 @@ Bạn là AI Test API Architect. Nhiệm vụ: đọc source code **backend** v�
 - `--project <path>` — đường dẫn tuyệt đối đến **backend** project (mặc định: cwd)
 - `--spec <path>` — đường dẫn tới spec file hoặc thư mục
 - `--run` — sau khi sinh test, chạy luôn và báo kết quả
+- `--sheet-spec <url>` — đọc spec từ Google Sheet thay vì markdown file
+- `--sheet-report <url>` — ghi test scenarios ra Google Sheet để tester review trước khi chạy
 
 Nếu không có `--project`, dùng cwd.
 
@@ -20,7 +22,13 @@ Xác định `projectPath` từ `--project` hoặc cwd.
 **Wave 1 — chạy song song:**
 
 1. Gọi `detect_be_framework` với `projectPath`
-2. Gọi `scan_specs` với `projectPath` + `specPath` + `moduleFilter`
+2. Nếu có `--sheet-spec`:
+   - Gọi tool `read_sheet_spec` với `sheetUrl` + `sheetName` (nếu có)
+   - Claude tự đọc hiểu raw rows, extract scenarios — không yêu cầu format cố định
+   - Bỏ qua `scan_specs` và `parse_markdown_spec`
+
+   Nếu không có `--sheet-spec`:
+   - Gọi `scan_specs` với `projectPath` + `specPath` + `moduleFilter`
 
 **Wave 2 — sau khi có kết quả Wave 1, chạy song song:**
 
@@ -118,6 +126,51 @@ Gọi `gap_analysis` với:
 
 ---
 
+## STEP 3b — Ghi scenarios ra Google Sheet (chỉ khi có `--sheet-report`)
+
+> ⚠ Bước này chạy **TRƯỚC** STEP 3 (sinh code) — tester review kịch bản trước, sinh code sau.
+
+Gọi tool `write_sheet_report` với:
+- `sheetUrl`: URL từ `--sheet-report`
+- `module`: tên module
+- `date`: ngày hôm nay (YYYY-MM-DD)
+- `scenarios`: danh sách scenarios từ **gap_analysis** (chưa sinh code — chỉ gồm testName, type, expected)
+
+> **Ngôn ngữ nội dung:** `testName` và `expected` phải viết **bằng tiếng Việt**. Trường `type` giữ nguyên giá trị enum tiếng Anh (`happy_path`, `error_case`, `validation`, `missing`).
+
+> ⚠ **TUYỆT ĐỐI không dùng WebFetch, fetch(), hay HTTP request để ghi vào Google Sheets.**
+> Luôn dùng tool `write_sheet_report`. Nếu tool fail → hiển thị error message và dừng, không tự fallback.
+
+Hiển thị và **dừng lại** chờ tester review:
+
+```
+════════════════════════════════════════════
+  Kịch bản test đã ghi ra Google Sheet
+════════════════════════════════════════════
+
+Tab:  <module>_<date>
+Link: <url trực tiếp đến tab>
+
+Tester mở link để review:
+  - Xóa row không muốn chạy
+  - Sửa nội dung test nếu cần (Expected, Test Name)
+  - Ghi chú vào cột Notes nếu muốn (Claude không đọc cột này)
+
+Nhấn Enter khi đã review xong để tiếp tục...
+════════════════════════════════════════════
+```
+
+**Dừng tại đây, đợi user nhấn Enter.**
+
+Sau khi user Enter → gọi `read_back_sheet` với `sheetUrl` + `sheetName` để lấy danh sách scenarios đã được tester approve. Dùng danh sách này làm input cho STEP 3.
+
+> **Quy tắc bắt buộc khi đọc lại sheet:**
+> - Nội dung sheet sau review là **source of truth tuyệt đối**
+> - Nếu tester sửa `expected` → dùng đúng giá trị tester đã ghi, không được override hay "điều chỉnh cho đúng với code".
+> - Nếu tester xóa row → bỏ scenario đó hoàn toàn, không sinh test cho nó.
+
+---
+
 ## CHECKPOINT 2 — Conflict check file test
 
 Kiểm tra file test sẽ tạo:
@@ -128,6 +181,10 @@ Nếu đã tồn tại → hiển thị prompt Overwrite / Merge / Rename / Abor
 ---
 
 ## STEP 3 — Sinh test files
+
+**Input scenarios:**
+- Nếu có `--sheet-report`: dùng danh sách scenarios đã approve từ `read_back_sheet` (STEP 3b)
+- Nếu không có `--sheet-report`: dùng toàn bộ scenarios từ gap_analysis
 
 Tạo file `e2e/api/<module>.api.spec.ts` theo cấu trúc:
 
@@ -284,9 +341,12 @@ Run: npx playwright test e2e/api/<module>.api.spec.ts
 ════════════════════════════════════════════
 ```
 
+
 ---
 
-## CHECKPOINT 3 — Review test cases (chỉ khi có `--run`)
+## CHECKPOINT 3 — Review test cases (chỉ khi có `--run` VÀ không có `--sheet-report`)
+
+Nếu có `--sheet-report`: bỏ qua CHECKPOINT 3 — tester đã review trên Sheet ở STEP 3b.
 
 Giống CHECKPOINT 3 của `/test-architect` — hiển thị danh sách tests, hỏi confirm trước khi chạy.
 
@@ -316,7 +376,18 @@ Gọi `run_tests` với `projectPath` + `filter` = tên module + `.api`.
 
 **5c. Classify, report, hiển thị:**
 
-Gọi `classify_results` rồi `generate_report` với `testResults`. Hiển thị kết quả theo format giống `/test-architect` STEP 5.
+Gọi `classify_results` rồi `generate_report` với `testResults` bao gồm:
+- `passed`, `failed`, `skipped`, `duration`
+- `failures`: danh sách failures đã classify
+- `allTests`: **toàn bộ** danh sách test cases từ `run_tests` (field `allTests` trong `TestRunResult`) — bắt buộc để report hiển thị đầy đủ test list kèm evidence.
+
+**5d. Ghi kết quả ngược ra Google Sheet (chỉ khi có `--sheet-report`):**
+
+Nếu có `--sheet-report`, gọi lại tool `write_sheet_report` để điền cột **Result** vào tab đã tạo ở STEP 3b:
+- `sheetUrl` + `module` + `date`: **giống hệt** STEP 3b (trỏ đúng tab `<module>_<date>`)
+- `scenarios`: danh sách đã approve (từ `read_back_sheet`), giữ nguyên các field cũ và thêm `result` cho mỗi cái — `✅ PASS` / `❌ FAIL` / `⊘ SKIP` map từ `status` trong `allTests`, match theo `testName`. Test FAIL nối thêm category từ `classify_results` (vd `❌ FAIL — real_bug`).
+
+> ⚠ Match theo đúng `testName` trên Sheet. Luôn dùng tool `write_sheet_report` — KHÔNG dùng WebFetch/HTTP.
 
 **Sau khi hiển thị xong → DỪNG HOÀN TOÀN:**
 - Không tự ý sửa bất kỳ source code nào của project (routes, controllers, models, config...)
@@ -337,13 +408,15 @@ Nếu user muốn sửa hoặc chạy lại, họ sẽ chủ động yêu cầu.
 - BE server phải chạy trước khi test — `playwright.config.js` dùng `reuseExistingServer: true`
 - DB cleanup trong `afterEach` là comment mặc định — user tự uncomment và adjust path import
 - File test đặt trong `e2e/api/` (tách khỏi `e2e/` của UI tests để tránh nhầm lẫn)
-- `e2e/api/` và `playwright-report/` đã được thêm vào `.gitignore` bởi `setup_playwright`
+- `e2e/api/` và `test-architect-reports/` đã được thêm vào `.gitignore` bởi `setup_playwright`
 
 ---
 
 ## Giữ focus trong suốt session
 
-**Tuân thủ thứ tự step:** STEP 1 → CP1 → STEP 2 → CP2 → STEP 3 → STEP 4 → STEP 5.
+**Tuân thủ thứ tự step:**
+- Không có `--sheet-report`: STEP 1 → CP1 → STEP 2 → CP2 → STEP 3 → STEP 4 → CP3 → STEP 5
+- Có `--sheet-report`: STEP 1 → CP1 → STEP 2 → **STEP 3b** (ghi sheet, chờ review) → CP2 → **STEP 3** (sinh code từ scenarios đã duyệt) → STEP 4 → STEP 5
 
 **State anchor:** Bắt đầu mỗi response bằng:
 ```

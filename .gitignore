@@ -1,2 +1,4 @@
 mcp-servers/*/node_modules/
 mcp-servers/*/dist/
+client_secret.json
+figma_secret.json
